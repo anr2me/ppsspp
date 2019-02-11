@@ -62,6 +62,7 @@
 #include "Core/ELF/ParamSFO.h"
 #include "Core/SaveState.h"
 #include "Common/LogManager.h"
+#include "Common/ExceptionHandlerSetup.h"
 #include "Core/HLE/sceAudiocodec.h"
 
 #include "GPU/GPUState.h"
@@ -260,10 +261,11 @@ void CPU_Init() {
 		return;
 	}
 
-
 	if (coreParameter.updateRecent) {
 		g_Config.AddRecent(filename);
 	}
+
+	InstallExceptionHandler(&Memory::HandleFault);
 }
 
 PSP_LoadingLock::PSP_LoadingLock() {
@@ -275,6 +277,8 @@ PSP_LoadingLock::~PSP_LoadingLock() {
 }
 
 void CPU_Shutdown() {
+	UninstallExceptionHandler();
+
 	// Since we load on a background thread, wait for startup to complete.
 	PSP_LoadingLock lock;
 	PSPLoaders_Shutdown();
