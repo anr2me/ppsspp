@@ -1263,6 +1263,31 @@ static void DrawDebugStats(DrawBuffer *draw2d, const Bounds &bounds) {
 	draw2d->SetFontScale(1.0f, 1.0f);
 }
 
+static void DrawCrashDump(DrawBuffer *draw2d) {
+	FontID ubuntu24("UBUNTU24");
+	char statbuf[4096];
+	char versionString[256];
+	sprintf(versionString, "%s", PPSSPP_GIT_VERSION);
+	// TODO: Draw a lot more information. Full register set, and so on.
+	snprintf(statbuf, sizeof(statbuf), R"(Bad Memory Access
+Game ID: %s
+Game Title: %s
+PPSSPP Version: %s
+
+PC: %08x
+)",
+g_paramSFO.GetDiscID().c_str(),
+g_paramSFO.GetValueString("TITLE").c_str(),
+versionString,
+currentMIPS->pc);
+
+	draw2d->SetFontScale(.7f, .7f);
+	int x = 20;
+	int y = 40;
+	draw2d->DrawText(ubuntu24, statbuf, x + 1, y + 1, 0xc0000000, FLAG_DYNAMIC_ASCII);
+	draw2d->DrawText(ubuntu24, statbuf, x, y, 0xFFFFFFFF, FLAG_DYNAMIC_ASCII);
+}
+
 static void DrawAudioDebugStats(DrawBuffer *draw2d, const Bounds &bounds) {
 	FontID ubuntu24("UBUNTU24");
 	char statbuf[4096] = { 0 };
@@ -1414,6 +1439,9 @@ void EmuScreen::render() {
 		if (PSP_IsInited()) {
 			gpu->CopyDisplayToOutput(true);
 		}
+	} else if (coreState == CORE_ERROR) {
+		// We'll render some text in the UI.
+		thin3d->BindFramebufferAsRenderTarget(nullptr, { RPAction::CLEAR, RPAction::CLEAR, RPAction::CLEAR }, "EmuScreen_Error");
 	} else {
 		// Didn't actually reach the end of the frame, ran out of the blockTicks cycles.
 		// In this case we need to bind and wipe the backbuffer, at least.
@@ -1464,6 +1492,8 @@ bool EmuScreen::hasVisibleUI() {
 	if (g_Config.bShowDebugStats || g_Config.bShowDeveloperMenu || g_Config.bShowAudioDebug || g_Config.bShowFrameProfiler)
 		return true;
 
+	if (coreState == CORE_ERROR)
+		return true;
 	return false;
 }
 
@@ -1523,6 +1553,11 @@ void EmuScreen::renderUI() {
 		DrawProfile(*ctx);
 	}
 #endif
+
+	if (coreState == CORE_ERROR) {
+		DrawCrashDump(draw2d);
+	}
+
 	ctx->Flush();
 }
 
