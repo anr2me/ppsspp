@@ -46,7 +46,7 @@ typedef CONTEXT SContext;
 
 #include <mach/mach.h>
 #include <mach/message.h>
-#if _M_X86_64
+#if PPSSPP_ARCH_AMD64
 typedef x86_thread_state64_t SContext;
 #define CTX_RAX __rax
 #define CTX_RBX __rbx
