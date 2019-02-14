@@ -213,7 +213,12 @@ void Jit::GenerateFixedCode(JitOptions &jo) {
 	RET();
 
 	crashHandler = GetCodePtr();
-	MOV(32, M(&coreState), Imm32(CORE_ERROR));
+	if (RipAccessible((const void *)&coreState)) {
+		MOV(32, M(&coreState), Imm32(CORE_ERROR));
+	} else {
+		MOV(PTRBITS, R(RAX), ImmPtr((const void *)&coreState));
+		MOV(32, MatR(RAX), Imm32(CORE_ERROR));
+	}
 	JMP(quitLoop, true);
 
 	// Let's spare the pre-generated code from unprotect-reprotect.
