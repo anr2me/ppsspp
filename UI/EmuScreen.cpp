@@ -1267,7 +1267,8 @@ static void DrawCrashDump(DrawBuffer *draw2d) {
 	FontID ubuntu24("UBUNTU24");
 	char statbuf[4096];
 	char versionString[256];
-	sprintf(versionString, "%s", PPSSPP_GIT_VERSION);
+	snprintf(versionString, sizeof(versionString), "%s", PPSSPP_GIT_VERSION);
+
 	// TODO: Draw a lot more information. Full register set, and so on.
 	snprintf(statbuf, sizeof(statbuf), R"(Bad Memory Access
 Game ID: %s
@@ -1275,6 +1276,8 @@ Game Title: %s
 PPSSPP Version: %s
 
 PC: %08x
+
+(Turn off Fast Memory to debug the crash in the PPSSPP debugger)
 )",
 g_paramSFO.GetDiscID().c_str(),
 g_paramSFO.GetValueString("TITLE").c_str(),
