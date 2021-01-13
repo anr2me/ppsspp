@@ -562,12 +562,29 @@ struct HI16RelocInfo
 	u32 addr;
 	u32 data;
 };
-static void WriteVarSymbol(u32 exportAddress, u32 relocAddress, u8 type, bool reverse = false)
+static void WriteVarSymbol(u32 exportAddress, u32 relocAddress, u8 type, bool reverse = false, u32 unloadBaseAddr = 0, u32 unloadSize = 0)
 {
 	// We have to post-process the HI16 part, since it might be +1 or not depending on the LO16 value.
 	static u32 lastHI16ExportAddress = 0;
 	static std::vector<HI16RelocInfo> lastHI16Relocs;
 	static bool lastHI16Processed = true;
+
+	// Remove reloc addresses pointing to unloaded module's memory block to avoid corrupting the data of the memory block's new owner
+	// TODO: We still need to make sure these static vars to be reset when Exiting current game or when Launching the next game, to prevent corrupting the new game.
+	if (unloadBaseAddr != 0) {
+		u32 unloadEndAddr = unloadBaseAddr + unloadSize;
+		lastHI16Relocs.erase(std::remove_if(lastHI16Relocs.begin(), lastHI16Relocs.end(), 
+			[unloadBaseAddr, unloadEndAddr](HI16RelocInfo const& ri) {
+				return (ri.addr >= unloadBaseAddr && ri.addr < unloadEndAddr);
+			}),
+			lastHI16Relocs.end());
+
+		if (lastHI16Relocs.empty()) {
+			lastHI16ExportAddress = 0;
+			lastHI16Processed = true;
+		}
+		return;
+	}
 
 	u32 relocData = Memory::Read_Instruction(relocAddress, true).encoding;
 
@@ -852,6 +869,9 @@ void PSPModule::Cleanup() {
 			Memory::Write_U32(MIPS_MAKE_BREAK(1), nm.text_addr + i);
 		}
 		Memory::Memset(nm.text_addr + nm.text_size, -1, nm.data_size + nm.bss_size);
+
+		// Remove unloaded reloc addresses from static vars
+		WriteVarSymbol(0, 0, 0, false, memoryBlockAddr, memoryBlockSize); 
 
 		// Let's also invalidate, just to make sure it's cleared out for any future data.
 		currentMIPS->InvalidateICache(memoryBlockAddr, memoryBlockSize);
