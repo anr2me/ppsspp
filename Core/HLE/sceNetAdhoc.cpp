@@ -1584,10 +1584,13 @@ static int sceNetAdhocPdpSend(int id, const char *mac, u32 port, void *data, int
 									if (sent == SOCKET_ERROR) {
 										// Simulate blocking behaviour with non-blocking socket
 										if (!flag && (error == EAGAIN || error == EWOULDBLOCK)) {
+											if (timeout > 0 && timeout < 1000)
+												return hleLogDebug(SCENET, ERROR_NET_ADHOC_TIMEOUT, "timeout");
+
 											u64 threadSocketId = ((u64)__KernelGetCurThread()) << 32 | pdpsocket.id;
 											if (sendTargetPeers.find(threadSocketId) != sendTargetPeers.end()) {
-												DEBUG_LOG(SCENET, "sceNetAdhocPdpSend[%i:%u]: Socket(%d) is Busy!", id, getLocalPort(pdpsocket.id), pdpsocket.id);
-												return hleLogError(SCENET, ERROR_NET_ADHOC_BUSY, "busy?");
+												DEBUG_LOG(SCENET, "sceNetAdhocPdpSend[%i:%u]: Socket(%d) is Busy/Inprogress!", id, getLocalPort(pdpsocket.id), pdpsocket.id);
+												return hleLogError(SCENET, ERROR_NET_ADHOC_BUSY, "busy/inprogress?");
 											}
 
 											AdhocSendTargets dest = { len, {}, false };
@@ -1662,8 +1665,8 @@ static int sceNetAdhocPdpSend(int id, const char *mac, u32 port, void *data, int
 								if (!flag) {
 									u64 threadSocketId = ((u64)__KernelGetCurThread()) << 32 | pdpsocket.id;
 									if (sendTargetPeers.find(threadSocketId) != sendTargetPeers.end()) {
-										DEBUG_LOG(SCENET, "sceNetAdhocPdpSend[%i:%u](BC): Socket(%d) is Busy!", id, getLocalPort(pdpsocket.id), pdpsocket.id);
-										return hleLogError(SCENET, ERROR_NET_ADHOC_BUSY, "busy?");
+										DEBUG_LOG(SCENET, "sceNetAdhocPdpSend[%i:%u](BC): Socket(%d) is Busy/Inprogress!", id, getLocalPort(pdpsocket.id), pdpsocket.id);
+										return hleLogError(SCENET, ERROR_NET_ADHOC_BUSY, "busy/inprogress?");
 									}
 
 									sendTargetPeers[threadSocketId] = dest;
@@ -1830,10 +1833,14 @@ static int sceNetAdhocPdpRecv(int id, void *addr, void * port, void *buf, void *
 							VERBOSE_LOG(SCENET, "%08x=sceNetAdhocPdpRecv: would block (disc)", ERROR_NET_ADHOC_WOULD_BLOCK); // Temporary fix to avoid a crash on the Logs due to trying to Logs syscall's argument from another thread (ie. AdhocMatchingInput thread)
 							return ERROR_NET_ADHOC_WOULD_BLOCK; // hleLogSuccessVerboseX(SCENET, ERROR_NET_ADHOC_WOULD_BLOCK, "would block (disc)");
 						}
-						else {
+						else if (timeout >= 1000 || timeout <= 0) {
 							// Simulate blocking behaviour with non-blocking socket, and discard more unresolvable packets until timeout reached
 							u64 threadSocketId = ((u64)__KernelGetCurThread()) << 32 | pdpsocket.id;
 							return WaitBlockingAdhocSocket(threadSocketId, PDP_RECV, id, buf, len, timeout, saddr, sport, "pdp recv (disc)");
+						}
+						else {
+							VERBOSE_LOG(SCENET, "%08x=sceNetAdhocPdpRecv: timeout (disc)", ERROR_NET_ADHOC_TIMEOUT); // Temporary fix to avoid a crash on the Logs due to trying to Logs syscall's argument from another thread (ie. AdhocMatchingInput thread)
+							return ERROR_NET_ADHOC_TIMEOUT; // hleLogSuccessVerboseX(SCENET, ERROR_NET_ADHOC_TIMEOUT, "timeout (disc)");
 						}
 					}
 					else
@@ -2098,10 +2105,13 @@ int sceNetAdhocPollSocket(u32 socketStructAddr, int count, int timeout, int nonb
 			if (nonblock)
 				affectedsockets = PollAdhocSocket(sds, count, 0, nonblock);
 			else {
-				// Simulate blocking behaviour with non-blocking socket
-				// Borrowing some arguments to pass some parameters. The dummy WaitID(count+1) might not be unique thus have duplicate possibilities if there are multiple thread trying to poll the same numbers of socket at the same time
-				u64 threadSocketId = ((u64)__KernelGetCurThread()) << 32 | (count + 1ULL);
-				return WaitBlockingAdhocSocket(threadSocketId, ADHOC_POLL_SOCKET, count, sds, nullptr, timeout, nullptr, nullptr, "adhoc pollsocket");
+				if (timeout >= 1000 || timeout <= 0) {
+					// Simulate blocking behaviour with non-blocking socket
+					// Borrowing some arguments to pass some parameters. The dummy WaitID(count+1) might not be unique thus have duplicate possibilities if there are multiple thread trying to poll the same numbers of socket at the same time
+					u64 threadSocketId = ((u64)__KernelGetCurThread()) << 32 | (count + 1ULL);
+					return WaitBlockingAdhocSocket(threadSocketId, ADHOC_POLL_SOCKET, count, sds, nullptr, timeout, nullptr, nullptr, "adhoc pollsocket");
+				}
+				else affectedsockets = PollAdhocSocket(sds, count, 0, 0);
 			}
 
 			// Free Network Lock
@@ -4053,13 +4063,16 @@ static int sceNetAdhocPtpSend(int id, u32 dataAddr, u32 dataSizeAddr, int timeou
 					
 					// Non-Critical Error
 					else if (sent == SOCKET_ERROR && (error == EAGAIN || error == EWOULDBLOCK || (ptpsocket.state == ADHOC_PTP_STATE_SYN_SENT && (error == ENOTCONN || connectInProgress(error))))) {
+						if (flag == 0 && (timeout >= 1000 || timeout <= 0)) {
+							// Simulate blocking behaviour with non-blocking socket
+							u64 threadSocketId = ((u64)__KernelGetCurThread()) << 32 | ptpsocket.id;
+							return WaitBlockingAdhocSocket(threadSocketId, PTP_SEND, id, (void*)data, len, timeout, nullptr, nullptr, "ptp send");
+						}
 						// Non-Blocking
-						if (flag) 
-							return hleLogSuccessVerboseX(SCENET, ERROR_NET_ADHOC_WOULD_BLOCK, "would block");
-						
-						// Simulate blocking behaviour with non-blocking socket
-						u64 threadSocketId = ((u64)__KernelGetCurThread()) << 32 | ptpsocket.id;
-						return WaitBlockingAdhocSocket(threadSocketId, PTP_SEND, id, (void*)data, len, timeout, nullptr, nullptr, "ptp send");
+						else if (flag == 0)
+							return hleLogSuccessVerboseX(SCENET, ERROR_NET_ADHOC_TIMEOUT, "timeout(faked)");
+
+						return hleLogSuccessVerboseX(SCENET, ERROR_NET_ADHOC_WOULD_BLOCK, "would block");
 					}
 
 					DEBUG_LOG(SCENET, "sceNetAdhocPtpSend[%i:%u -> %s:%u]: Result:%i (Error:%i)", id, ptpsocket.lport, mac2str(&ptpsocket.paddr).c_str(), ptpsocket.pport, sent, error);
@@ -4138,11 +4151,13 @@ static int sceNetAdhocPtpRecv(int id, u32 dataAddr, u32 dataSizeAddr, int timeou
 					error = errno;
 
 					if (received == SOCKET_ERROR && (error == EAGAIN || error == EWOULDBLOCK || (ptpsocket.state == ADHOC_PTP_STATE_SYN_SENT && (error == ENOTCONN || connectInProgress(error))))) {
-						if (flag == 0) {
+						if (flag == 0 && (timeout >= 1000 || timeout <= 0)) {
 							// Simulate blocking behaviour with non-blocking socket
 							u64 threadSocketId = ((u64)__KernelGetCurThread()) << 32 | ptpsocket.id;
 							return WaitBlockingAdhocSocket(threadSocketId, PTP_RECV, id, buf, len, timeout, nullptr, nullptr, "ptp recv");
 						}
+						else if (flag == 0)
+							return hleLogSuccessVerboseX(SCENET, ERROR_NET_ADHOC_TIMEOUT, "timeout(faked)");
 
 						return hleLogSuccessVerboseX(SCENET, ERROR_NET_ADHOC_WOULD_BLOCK, "would block");
 					}
