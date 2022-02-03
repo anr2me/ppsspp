@@ -1353,7 +1353,7 @@ static int sceNetAdhocPdpCreate(const char *mac, int port, int bufferSize, u32 f
 				if (usocket != INVALID_SOCKET) {
 					// Change socket buffer size to be consistent on all platforms.
 					// Send Buffer should be smaller than Recv Buffer to prevent faster device from flooding slower device too much.
-					setSockBufferSize(usocket, SO_SNDBUF, bufferSize*5); //PSP_ADHOC_PDP_MFS
+					setSockBufferSize(usocket, SO_SNDBUF, bufferSize); //PSP_ADHOC_PDP_MFS
 					// Recv Buffer should be equal or larger than Send Buffer. Using larger Recv Buffer might helped reduces dropped packets during a slowdown, but too large may cause slow performance on Warriors Orochi 2.
 					setSockBufferSize(usocket, SO_RCVBUF, bufferSize*10); //PSP_ADHOC_PDP_MFS*10
 
@@ -3275,7 +3275,7 @@ static int sceNetAdhocPtpOpen(const char *srcmac, int sport, const char *dstmac,
 					setSockMSS(tcpsocket, PSP_ADHOC_PTP_MSS);
 
 					// Change socket buffer size to be consistent on all platforms.
-					setSockBufferSize(tcpsocket, SO_SNDBUF, bufsize*5); //PSP_ADHOC_PTP_MSS
+					setSockBufferSize(tcpsocket, SO_SNDBUF, bufsize); //PSP_ADHOC_PTP_MSS
 					setSockBufferSize(tcpsocket, SO_RCVBUF, bufsize*10); //PSP_ADHOC_PTP_MSS*10
 
 					// Enable KeepAlive
@@ -3465,7 +3465,7 @@ int AcceptPtpSocket(int ptpId, int newsocket, sockaddr_in& peeraddr, SceNetEther
 
 					// Set Default Buffer Size or inherit the size?
 					internal->buffer_size = socket->buffer_size;
-					setSockBufferSize(newsocket, SO_SNDBUF, internal->buffer_size*5); //PSP_ADHOC_PTP_MSS
+					setSockBufferSize(newsocket, SO_SNDBUF, internal->buffer_size); //PSP_ADHOC_PTP_MSS
 					setSockBufferSize(newsocket, SO_RCVBUF, internal->buffer_size*10); //PSP_ADHOC_PTP_MSS*10
 
 					// Copy Local Address Data to Structure
@@ -3853,7 +3853,7 @@ static int sceNetAdhocPtpListen(const char *srcmac, int sport, int bufsize, int 
 					setSockMSS(tcpsocket, PSP_ADHOC_PTP_MSS);
 
 					// Change socket buffer size to be consistent on all platforms.
-					setSockBufferSize(tcpsocket, SO_SNDBUF, bufsize*5); //PSP_ADHOC_PTP_MSS
+					setSockBufferSize(tcpsocket, SO_SNDBUF, bufsize); //PSP_ADHOC_PTP_MSS
 					setSockBufferSize(tcpsocket, SO_RCVBUF, bufsize*10); //PSP_ADHOC_PTP_MSS*10
 
 					// Enable KeepAlive
