@@ -307,7 +307,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+        - os: ubuntu-latest
+          id: clang
+        
+        - os: macos-latest
+          id: macos
 
     runs-on: ${{ matrix.os }}
     needs: build
