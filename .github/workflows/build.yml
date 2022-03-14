@@ -337,7 +337,7 @@ jobs:
     - name: Download build
       uses: actions/download-artifact@v2
       with:
-        name: ${{ matrix.os }} build
+        name: ${{ matrix.os }} ${{ matrix.id }} build
         path: ppsspp/
 
     # Not sure where it's ending up, but test.py can't find it...
