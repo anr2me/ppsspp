@@ -251,7 +251,7 @@ jobs:
         ${{ matrix.args }}
 
     - name: Package build
-      if: matrix.extra == 'test'
+      if: matrix.extra == 'test' || matrix.extra == 'ios' || matrix.id == 'android-arm32'
       run: |
         mkdir ppsspp
         if [ -e build*/$BUILD_CONFIGURATION/PPSSPPSDL ]; then
@@ -280,7 +280,7 @@ jobs:
 
     - name: Upload build
       uses: actions/upload-artifact@v1
-      if: matrix.extra == 'test' || matrix.extra == 'ios' || (matrix.extra == 'android' && matrix.id == 'android-arm32')
+      if: matrix.extra == 'test' || matrix.extra == 'ios' || matrix.id == 'android-arm32'
       with:
         name: ${{ matrix.os }} ${{ matrix.id }} build
         path: ppsspp/
