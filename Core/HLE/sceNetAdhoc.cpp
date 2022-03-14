@@ -4272,13 +4272,14 @@ static int sceNetAdhocPtpFlush(int id, int timeout, int nonblock) {
 					u64 threadSocketId = ((u64)__KernelGetCurThread()) << 32 | ptpsocket.id;
 					return WaitBlockingAdhocSocket(threadSocketId, PTP_FLUSH, id, nullptr, nullptr, timeout, nullptr, nullptr, "ptp flush");
 				}
-				else if (isDisconnected(error)) {
+				// FIXME: May be PtpFlush should always be successful, thus ignoring disconnected error?
+				/*else if (isDisconnected(error)) {
 					// Change Socket State
 					ptpsocket.state = ADHOC_PTP_STATE_CLOSED;
 
 					// Disconnected
 					return hleLogError(SCENET, ERROR_NET_ADHOC_DISCONNECTED, "disconnected");
-				}
+				}*/
 
 				if (error != 0)
 					DEBUG_LOG(SCENET, "sceNetAdhocPtpFlush[%i:%u -> %s:%u]: Error:%i", id, ptpsocket.lport, mac2str(&ptpsocket.paddr).c_str(), ptpsocket.pport, error);
