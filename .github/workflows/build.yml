@@ -263,9 +263,21 @@ jobs:
           zip -qry PPSSPPSDL.zip PPSSPPSDL.app
           rm -rf PPSSPPSDL.app
           cd -
+        elif [ -e build*/PPSSPP.app ]; then
+          cp -a build*/PPSSPP.app ppsspp/
+          # GitHub Actions zipping kills symlinks and permissions.
+          cd ppsspp
+          zip -qry PPSSPP.zip PPSSPP.app
+          rm -rf PPSSPP.app
+          cd -
         elif [ -e build*/PPSSPPSDL ]; then
           cp build*/PPSSPPSDL ppsspp/
           cp -r assets ppsspp/assets
+        fi
+        if [ -e build*/$BUILD_CONFIGURATION/ppsspp_headless ]; then
+          cp build*/$BUILD_CONFIGURATION/ppsspp_headless ppsspp/
+        elif [ -e build*/ppsspp_headless ]; then
+          cp build*/ppsspp_headless ppsspp/
         fi
         if [ -e build*/$BUILD_CONFIGURATION/PPSSPPHeadless ]; then
           cp build*/$BUILD_CONFIGURATION/PPSSPPHeadless ppsspp/
