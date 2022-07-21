@@ -412,7 +412,7 @@ bool PropagateConstants(const IRWriter &in, IRWriter &out, const IROptions &opts
 			} else if (gpr.IsImm(inst.src2)) {
 				const u32 imm2 = gpr.GetImm(inst.src2);
 				gpr.MapDirtyIn(inst.dest, inst.src1);
-				if (imm2 == 0 && (inst.op == IROp::Add || inst.op == IROp::Or)) {
+				if (imm2 == 0 && (inst.op == IROp::Add /* || inst.op == IROp::Or*/)) {
 					// Add / Or with zero is just a Mov.
 					if (inst.dest != inst.src1)
 						out.Write(IROp::Mov, inst.dest, inst.src1);
