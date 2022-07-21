@@ -90,7 +90,7 @@ namespace MIPSComp
 
 	void ArmJit::Comp_VPFX(MIPSOpcode op)
 	{
-		CONDITIONAL_DISABLE(VFPU_XFER);
+		//CONDITIONAL_DISABLE(VFPU_XFER);
 		int data = op & 0xFFFFF;
 		int regnum = (op >> 24) & 3;
 		switch (regnum) {
@@ -1417,7 +1417,7 @@ namespace MIPSComp
 
 	void ArmJit::Comp_VScl(MIPSOpcode op) {
 		NEON_IF_AVAILABLE(CompNEON_VScl);
-		CONDITIONAL_DISABLE(VFPU_VEC);
+		//CONDITIONAL_DISABLE(VFPU_VEC);
 		if (js.HasUnknownPrefix()) {
 			DISABLE;
 		}

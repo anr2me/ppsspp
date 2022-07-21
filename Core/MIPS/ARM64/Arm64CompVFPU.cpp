@@ -82,7 +82,7 @@ namespace MIPSComp {
 	}
 
 	void Arm64Jit::Comp_VPFX(MIPSOpcode op)	{
-		CONDITIONAL_DISABLE(VFPU_XFER);
+		//CONDITIONAL_DISABLE(VFPU_XFER);
 		int data = op & 0xFFFFF;
 		int regnum = (op >> 24) & 3;
 		switch (regnum) {
@@ -1166,7 +1166,7 @@ namespace MIPSComp {
 	}
 
 	void Arm64Jit::Comp_VScl(MIPSOpcode op) {
-		CONDITIONAL_DISABLE(VFPU_VEC);
+		//CONDITIONAL_DISABLE(VFPU_VEC);
 		if (js.HasUnknownPrefix()) {
 			DISABLE;
 		}

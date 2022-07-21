@@ -130,7 +130,7 @@ namespace MIPSComp {
 	}
 
 	void IRFrontend::Comp_VPFX(MIPSOpcode op) {
-		CONDITIONAL_DISABLE(VFPU_XFER);
+		//CONDITIONAL_DISABLE(VFPU_XFER);
 		// This is how prefixes are typically set.
 		int data = op & 0xFFFFF;
 		int regnum = (op >> 24) & 3;
@@ -1167,8 +1167,8 @@ namespace MIPSComp {
 	}
 
 	void IRFrontend::Comp_VScl(MIPSOpcode op) {
-		CONDITIONAL_DISABLE(VFPU_VEC);
-		if (js.HasUnknownPrefix() || !IsPrefixWithinSize(js.prefixS, op) || js.HasTPrefix()) {
+		//CONDITIONAL_DISABLE(VFPU_VEC);
+		if (js.HasUnknownPrefix() /* || !IsPrefixWithinSize(js.prefixS, op) || js.HasTPrefix()*/) {
 			DISABLE;
 		}
 
