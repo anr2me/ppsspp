@@ -621,6 +621,8 @@ namespace MIPSComp {
 		case 27: //VFPU3
 			switch ((op >> 23) & 7) {
 			case 2:  // vmin
+				allowSIMD = true;
+				break;
 			case 3:  // vmax
 				allowSIMD = false;
 				break;
