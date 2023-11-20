@@ -2472,7 +2472,7 @@ u32 NetAdhocctl_Disconnect() {
 	// Library initialized
 	if (netAdhocctlInited) {
 		int iResult, error;
-		hleEatMicro(1000);
+		hleEatMicro(16667);
 
 		if (isAdhocctlBusy && CoreTiming::IsScheduled(adhocctlNotifyEvent)) {
 			return ERROR_NET_ADHOCCTL_BUSY;
