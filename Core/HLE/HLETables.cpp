@@ -53,6 +53,7 @@
 #include "sceNet.h"
 #include "sceNetAdhoc.h"
 #include "sceNp.h"
+#include "sceNp2.h"
 #include "sceMpeg.h"
 #include "sceOpenPSID.h"
 #include "sceP3da.h"
@@ -307,6 +308,8 @@ void RegisterAllModules() {
 	Register_sceDdrdb();
 	Register_mp4msv();
 	Register_InterruptManagerForKernel();
+	Register_sceNpMatching2();
+	Register_sceNetApctl_internal_user();
 	// add new modules here.
 }
 

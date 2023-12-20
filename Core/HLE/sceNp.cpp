@@ -336,10 +336,10 @@ int sceNpAuthCreateStartRequest(u32 paramAddr)
 	npServiceId = Memory::GetCharPointer(params.serviceIdAddr);
 
 	INFO_LOG(SCENET, "%s - Max Version: %u.%u", __FUNCTION__, params.version.major, params.version.minor);
-	INFO_LOG(SCENET, "%s - Service ID: %s", __FUNCTION__, Memory::GetCharPointer(params.serviceIdAddr));
-	INFO_LOG(SCENET, "%s - Entitlement ID: %s", __FUNCTION__, Memory::GetCharPointer(params.entitlementIdAddr));
+	INFO_LOG(SCENET, "%s - Service ID: %s", __FUNCTION__, safe_string(Memory::GetCharPointer(params.serviceIdAddr)));
+	INFO_LOG(SCENET, "%s - Entitlement ID: %s", __FUNCTION__, safe_string(Memory::GetCharPointer(params.entitlementIdAddr)));
 	INFO_LOG(SCENET, "%s - Consumed Count: %d", __FUNCTION__, params.consumedCount);
-	INFO_LOG(SCENET, "%s - Cookie (size = %d): %s", __FUNCTION__, params.cookieSize, Memory::GetCharPointer(params.cookieAddr));
+	INFO_LOG(SCENET, "%s - Cookie (size = %d): %s", __FUNCTION__, params.cookieSize, safe_string(Memory::GetCharPointer(params.cookieAddr)));
 
 	u32 retval = 0;
 	if (params.size >= 32 && params.ticketCbAddr != 0) {
@@ -442,7 +442,7 @@ int sceNpAuthGetTicket(u32 requestId, u32 bufferAddr, u32 length)
 int sceNpAuthGetEntitlementById(u32 ticketBufferAddr, u32 ticketLength, u32 entitlementIdAddr, u32 arg4)
 {
 	ERROR_LOG(SCENET, "UNIMPL %s(%08x, %d, %08x, %d)", __FUNCTION__, ticketBufferAddr, ticketLength, entitlementIdAddr, arg4);
-	INFO_LOG(SCENET, "%s - Entitlement ID: %s", __FUNCTION__, Memory::GetCharPointer(entitlementIdAddr));
+	INFO_LOG(SCENET, "%s - Entitlement ID: %s", __FUNCTION__, safe_string(Memory::GetCharPointer(entitlementIdAddr)));
 
 	// Do we return the entitlement through function result? or update the ticket content? or replace the arg3 data with SceNpEntitlement struct?
 	return 1; // dummy value assuming it's a boolean/flag, since we don't know how to return the entitlement result yet
@@ -540,7 +540,7 @@ static int sceNpServiceInit(u32 poolSize, u32 stackSize, u32 threadPrio)
 static int sceNpLookupCreateTransactionCtx(u32 lookupTitleCtxIdAddr)
 {
 	ERROR_LOG(SCENET, "UNIMPL %s(%08x)", __FUNCTION__, lookupTitleCtxIdAddr);
-	INFO_LOG(SCENET, "%s - Title ID: %s", __FUNCTION__, Memory::GetCharPointer(lookupTitleCtxIdAddr));
+	INFO_LOG(SCENET, "%s - Title ID: %s", __FUNCTION__, safe_string(Memory::GetCharPointer(lookupTitleCtxIdAddr)));
 	// Patapon 3 will only Destroy if returned Id > 0. Is 0 a valid id?
 	return 1; // returning dummy transaction id
 }

@@ -86,6 +86,7 @@ int adhocDefaultDelay = 10000; //10000
 int adhocExtraDelay = 20000; //20000
 int adhocEventPollDelay = 100000; //100000; // Same timings with PSP_ADHOCCTL_RECV_TIMEOUT ?
 int adhocMatchingEventDelay = 30000; //30000
+int adhocMatchingDefaultDelay = 2000; //10000
 int adhocEventDelay = 2000000; //2000000 on real PSP ?
 u32 defaultLastRecvDelta = 10000; //10000 usec worked well for games published by Falcom (ie. Ys vs Sora Kiseki, Vantage Master Portable)
 
@@ -112,6 +113,7 @@ u32_le dummyThreadCode[3];
 u32 matchingThreadHackAddr = 0;
 u32_le matchingThreadCode[3];
 
+void sendBulkDataPacket(SceNetAdhocMatchingContext* context, SceNetEtherAddr* mac, int datalen, void* data);
 int matchingEventThread(int matchingId); 
 int matchingInputThread(int matchingId); 
 void sendBulkDataPacket(SceNetAdhocMatchingContext* context, SceNetEtherAddr* mac, int datalen, void* data);
@@ -360,6 +362,7 @@ static void __AdhocctlNotify(u64 userdata, int cyclesLate) {
 			sockerr = EAGAIN;
 			// Don't send anything yet if connection to Adhoc Server is still in progress
 			if (!isAdhocctlNeedLogin && IsSocketReady((int)metasocket, false, true) > 0) {
+				DEBUG_LOG(SCENET, "sceNetAdhocctl[%i]: Sending OPCODE %d", uid, req.opcode);
 				ret = send((int)metasocket, (const char*)&packet, len, MSG_NOSIGNAL);
 				sockerr = errno;
 				// Successfully Sent or Connection has been closed or Connection failure occurred
@@ -376,12 +379,12 @@ static void __AdhocctlNotify(u64 userdata, int cyclesLate) {
 		if ((req.opcode == OPCODE_LOGIN && !networkInited) || (ret == SOCKET_ERROR && (sockerr == EAGAIN || sockerr == EWOULDBLOCK))) {
 			u64 now = (u64)(time_now_d() * 1000000.0);
 			if (now - adhocctlStartTime <= static_cast<u64>(adhocDefaultTimeout) + 500) {
-				// Try again in another 0.5ms until timedout.
+				// Try again in another 0.5ms until timedout
 				CoreTiming::ScheduleEvent(usToCycles(500) - cyclesLate, adhocctlNotifyEvent, userdata);
 				return;
 			}
 			else if (req.opcode != OPCODE_LOGIN)
-				result = ERROR_NET_ADHOCCTL_BUSY;
+				result = ERROR_NET_ADHOCCTL_TIMEOUT; // FIXME: We should probably need to passed the error code through Adhocctl Handler's ERROR Event when a handler existed
 		}
 	}
 	else
@@ -1282,25 +1285,31 @@ void __NetAdhocInit() {
 }
 
 u32 sceNetAdhocInit() {
-	if (!netAdhocInited) {
-		// Library initialized
-		netAdhocInited = true;
-		isAdhocctlBusy = false;
+	// FIXME: If Net library is not inited return 0x800201ca ?
+	if (!netInited)
+		return hleLogError(SCENET, SCE_KERNEL_ERROR_LWMUTEX_NOT_FOUND, "net was not initialized?");
 
-		// FIXME: It seems official prx is using sceNetAdhocGameModeDeleteMaster in here?
-		NetAdhocGameMode_DeleteMaster();
-		// Since we are deleting GameMode Master here, we should probably need to make sure GameMode resources all cleared too.
-		deleteAllGMB();
-
-		// Return Success
-		return hleLogSuccessInfoI(SCENET, 0, "at %08x", currentMIPS->pc);
-	}
 	// Already initialized
-	return hleLogWarning(SCENET, ERROR_NET_ADHOC_ALREADY_INITIALIZED, "already initialized");
+	if (netAdhocInited)
+		return hleLogError(SCENET, ERROR_NET_ADHOC_ALREADY_INITIALIZED, "already initialized");
+	
+	netAdhocInited = true;
+	isAdhocctlBusy = false;
+
+	// FIXME: It seems official prx is using sceNetAdhocGameModeDeleteMaster in here?
+	NetAdhocGameMode_DeleteMaster();
+	// Since we are deleting GameMode Master here, we should probably need to make sure GameMode resources all cleared too.
+	deleteAllGMB();
+
+	// Return Success
+	return hleLogSuccessInfoI(SCENET, 0, "at %08x", currentMIPS->pc);
 }
 
-static u32 sceNetAdhocctlInit(int stackSize, int prio, u32 productAddr) {
+int sceNetAdhocctlInit(int stackSize, int prio, u32 productAddr) {
 	INFO_LOG(SCENET, "sceNetAdhocctlInit(%i, %i, %08x) at %08x", stackSize, prio, productAddr, currentMIPS->pc);
+	if (!g_Config.bEnableWlan) {
+		return -1;
+	}
 	
 	// FIXME: Returning 0x8002013a (SCE_KERNEL_ERROR_LIBRARY_NOT_YET_LINKED) without adhoc module loaded first?
 	// FIXME: Sometimes returning 0x80410601 (ERROR_NET_ADHOC_AUTH_ALREADY_INITIALIZED / Library module is already initialized ?) when AdhocctlTerm is not fully done?
@@ -1446,9 +1455,10 @@ static int sceNetAdhocPdpCreate(const char *mac, int port, int bufferSize, u32 f
 
 					if (iResult == 0) {
 						// Workaround: Send a dummy 0 size message to AdhocServer IP to make sure the socket actually bound to an address when binded with INADDR_ANY before using getsockname, seems to fix sending from incorrect port issue on MGS:PW on Android
-						addr.sin_addr.s_addr = g_adhocServerIP.in.sin_addr.s_addr;
+						/*addr.sin_addr.s_addr = g_adhocServerIP.in.sin_addr.s_addr;
 						addr.sin_port = 0;
 						sendto(usocket, dummyPeekBuf64k, 0, MSG_NOSIGNAL, (struct sockaddr*)&addr, sizeof(addr));
+						*/
 						// Update sport with the port assigned internal->lport = ntohs(local.sin_port)
 						socklen_t len = sizeof(addr);
 						if (getsockname(usocket, (struct sockaddr*)&addr, &len) == 0) {
@@ -1542,7 +1552,7 @@ static int sceNetAdhocctlGetParameter(u32 paramAddr) {
 	memcpy(grpName, parameter.group_name.data, ADHOCCTL_GROUPNAME_LEN);
 	parameter.nickname.data[ADHOCCTL_NICKNAME_LEN - 1] = 0;
 	DEBUG_LOG(SCENET, "sceNetAdhocctlGetParameter(%08x) [Ch=%i][Group=%s][BSSID=%s][name=%s]", paramAddr, parameter.channel, grpName, mac2str(&parameter.bssid.mac_addr).c_str(), parameter.nickname.data);
-	if (!g_Config.bEnableWlan) {
+	if (!g_Config.bEnableWlan || adhocctlState == ADHOCCTL_STATE_DISCONNECTED) {
 		return ERROR_NET_ADHOCCTL_DISCONNECTED;
 	}
 
@@ -2556,7 +2566,7 @@ u32 NetAdhocctl_Disconnect() {
 	return ERROR_NET_ADHOCCTL_NOT_INITIALIZED;
 }
 
-static u32 sceNetAdhocctlDisconnect() {
+int sceNetAdhocctlDisconnect() {
 	// WLAN might be disabled in the middle of successfull multiplayer, but we still need to cleanup right?
 	char grpName[9] = { 0 };
 	memcpy(grpName, parameter.group_name.data, ADHOCCTL_GROUPNAME_LEN); // Copied to null-terminated var to prevent unexpected behaviour on Logs
@@ -2781,6 +2791,13 @@ int NetAdhocctl_Create(const char* groupName) {
 	if (netAdhocctlInited) {
 		// Valid Argument
 		if (validNetworkName(groupNameStruct)) {
+			// FIXME: If Net library is not inited, return success but with Error 0x80410180 through Adhocctl Handler
+			if (!netInited) {
+				notifyAdhocctlHandlers(ADHOCCTL_EVENT_ERROR, 0x80410180); // library/address not available?
+				hleEatMicro(500);
+				return 0;
+			}
+
 			// FIXME: When tested with JPCSP + official prx files it seems when adhocctl in a connected state (ie. joined to a group) attempting to create/connect/join/scan will return a success (without doing anything?)
 			if ((adhocctlState == ADHOCCTL_STATE_CONNECTED) || (adhocctlState == ADHOCCTL_STATE_GAMEMODE)) {
 				// TODO: Need to test this on games that doesn't use Adhocctl Handler too (not sure if there are games like that tho)
@@ -3068,6 +3085,7 @@ int sceNetAdhocTerm() {
 	// WLAN might be disabled in the middle of successfull multiplayer, but we still need to cleanup all the sockets right?
 	int retval = NetAdhoc_Term();
 
+	// Gives enough time for AdhocServer to remove the player before the next Init to avoid "Already Existing IP" issue
 	hleEatMicro(adhocDefaultDelay);
 	return hleLogSuccessInfoI(SCENET, retval);
 }
@@ -4842,7 +4860,9 @@ int sceNetAdhocMatchingInit(u32 memsize) {
 		return ERROR_NET_ADHOC_MATCHING_ALREADY_INITIALIZED;
 		
 	// Save Fake Pool Size
-	fakePoolSize = memsize;
+	netAdhocPoolStat.pool = memsize - 0x20; // Slightly (32 bytes) smaller than what passed as init argument
+	netAdhocPoolStat.maximum = 0x4050; // Dummy maximum foot print ever allocated? (0 right after init)
+	netAdhocPoolStat.free = netAdhocPoolStat.pool; // Dummy free size (same as pool right after init), we should set this high enough to prevent any issue
 
 	// Initialize Library
 	deleteMatchingEvents();
@@ -4893,11 +4913,11 @@ static int sceNetAdhocMatchingCreate(int mode, int maxnum, int port, int rxbufle
 	// Library initialized
 	if (netAdhocMatchingInited) {
 		// Valid Member Limit
-		if (maxnum > 1 && maxnum <= 16) {
+		if (maxnum > 1 && maxnum <= PSP_NET_ADHOC_MATCHING_MAXNUM) {
 			// Valid Receive Buffer size
 			if (rxbuflen >= 1) { //1024 //200 on DBZ Shin Budokai 2
 				// Valid Arguments
-				if (mode >= 1 && mode <= 3) {
+				if (mode >= 1 && mode <= PSP_ADHOC_MATCHING_MODE_PTP) {
 
 					// Iterate Matching Contexts
 					SceNetAdhocMatchingContext * item = contexts; 
@@ -4998,6 +5018,10 @@ static int sceNetAdhocMatchingCreate(int mode, int maxnum, int port, int rxbufle
 }
 
 int NetAdhocMatching_Start(int matchingId, int evthPri, int evthPartitionId, int evthStack, int inthPri, int inthPartitionId, int inthStack, int optLen, u32 optDataAddr) {
+	// Invalid Optional Data Length
+	if (optLen > 0 && (optDataAddr == 0 || optLen > PSP_NET_ADHOC_MATCHING_MAXHELLOOPTLEN))
+		return hleLogError(SCENET, ERROR_NET_ADHOC_MATCHING_INVALID_OPTLEN, "adhocmatching invalid optlen");
+	
 	// Multithreading Lock
 	peerlock.lock();
 
@@ -5114,7 +5138,7 @@ static int sceNetAdhocMatchingSelectTarget(int matchingId, const char *macAddres
 					if (peer != NULL)
 					{
 						// Valid Optional Data Length
-						if ((optLen == 0) || (optLen > 0 && optDataPtr != 0))
+						if ((optLen == 0) || (optLen > 0 && optDataPtr != 0 && optLen <= PSP_NET_ADHOC_MATCHING_MAXOPTLEN))
 						{
 							void * opt = NULL;
 							if (Memory::IsValidAddress(optDataPtr)) opt = Memory::GetPointerWriteUnchecked(optDataPtr);
@@ -5249,6 +5273,10 @@ int NetAdhocMatching_CancelTargetWithOpt(int matchingId, const char* macAddress,
 		// Valid Arguments
 		if (target != NULL && ((optLen == 0) || (optLen > 0 && opt != NULL)))
 		{
+			// Invalid Optional Data Length
+			if (optLen > PSP_NET_ADHOC_MATCHING_MAXOPTLEN)
+				return hleLogError(SCENET, ERROR_NET_ADHOC_MATCHING_INVALID_OPTLEN, "adhocmatching invalid optlen");
+
 			// Find Matching Context
 			SceNetAdhocMatchingContext* context = findMatchingContext(matchingId);
 
@@ -5324,7 +5352,7 @@ int sceNetAdhocMatchingCancelTargetWithOpt(int matchingId, const char *macAddres
 }
 
 int sceNetAdhocMatchingCancelTarget(int matchingId, const char *macAddress) {
-	WARN_LOG(SCENET, "UNTESTED sceNetAdhocMatchingCancelTarget(%i, %s)", matchingId, mac2str((SceNetEtherAddr*)macAddress).c_str());
+	WARN_LOG(SCENET, "UNTESTED sceNetAdhocMatchingCancelTarget(%i, %s) at %08x", matchingId, mac2str((SceNetEtherAddr*)macAddress).c_str(), currentMIPS->pc);
 	if (!g_Config.bEnableWlan)
 		return -1;
 	return NetAdhocMatching_CancelTargetWithOpt(matchingId, macAddress, 0, 0);
@@ -5390,7 +5418,7 @@ int sceNetAdhocMatchingSetHelloOpt(int matchingId, int optLenAddr, u32 optDataAd
 		return hleLogError(SCENET, ERROR_NET_ADHOC_MATCHING_NOT_RUNNING, "adhocmatching not running");
 
 	// Invalid Optional Data Length
-	if ((optLenAddr != 0) && (optDataAddr == 0))
+	if (Memory::IsValidAddress(optLenAddr) && (optDataAddr == 0 || Memory::Read_U32(optLenAddr) > PSP_NET_ADHOC_MATCHING_MAXHELLOOPTLEN))
 		return hleLogError(SCENET, ERROR_NET_ADHOC_MATCHING_INVALID_OPTLEN, "adhocmatching invalid optlen"); //ERROR_NET_ADHOC_MATCHING_INVALID_ARG
 
 	// Grab Existing Hello Data
@@ -5632,6 +5660,12 @@ static int sceNetAdhocMatchingGetMembers(int matchingId, u32 sizeAddr, u32 buf) 
 		DEBUG_LOG(SCENET, "MemberList [Requested: %i][Discovered: %i]", requestedpeers, filledpeers);
 	}
 
+	static int prev_members = 0;
+	if (*buflen < prev_members) {
+		WARN_LOG(SCENET, "MemberList: Prev (%u) ==> Current (%u)", prev_members / sizeof(SceNetAdhocMatchingMemberInfoEmu), *buflen / sizeof(SceNetAdhocMatchingMemberInfoEmu));
+	}
+	prev_members = *buflen;
+
 	// Return Success
 	return hleDelayResult(0, "delay 100 ~ 1000us", 100); // seems to have different thread running within the delay duration
 }
@@ -5781,8 +5815,8 @@ static int sceNetAdhocMatchingGetPoolMaxAlloc() {
 	if (!g_Config.bEnableWlan)
 		return -1;
 	
-	// Lazy way out - hardcoded return value
-	return hleLogDebug(SCENET, fakePoolSize/2, "faked value");
+	// max footprint ever allocated?
+	return hleLogDebug(SCENET, netAdhocPoolStat.maximum, "faked value");
 }
 
 int sceNetAdhocMatchingGetPoolStat(u32 poolstatPtr) {
@@ -5790,30 +5824,19 @@ int sceNetAdhocMatchingGetPoolStat(u32 poolstatPtr) {
 	if (!g_Config.bEnableWlan)
 		return -1;
 	
-	// Initialized Library
-	if (netAdhocMatchingInited)
-	{
-		SceNetMallocStat * poolstat = NULL;
-		if (Memory::IsValidAddress(poolstatPtr)) poolstat = (SceNetMallocStat *)Memory::GetPointer(poolstatPtr);
-
-		// Valid Argument
-		if (poolstat != NULL)
-		{
-			// Fill Poolstat with Fake Data
-			poolstat->pool = fakePoolSize;
-			poolstat->maximum = fakePoolSize / 2; // Max usage faked to halt the pool
-			poolstat->free = fakePoolSize - poolstat->maximum;
-
-			// Return Success
-			return 0;
-		}
-
-		// Invalid Argument
-		return hleLogError(SCENET, ERROR_NET_ADHOC_MATCHING_INVALID_ARG, "adhocmatching invalid arg");
-	}
-
 	// Uninitialized Library
-	return hleLogError(SCENET, ERROR_NET_ADHOC_MATCHING_NOT_INITIALIZED, "adhocmatching not initialized");
+	if (!netAdhocMatchingInited)		
+		return hleLogError(SCENET, ERROR_NET_ADHOC_MATCHING_NOT_INITIALIZED, "adhocmatching not initialized");
+
+	auto poolstat = PSPPointer<SceNetMallocStat>::Create(poolstatPtr);
+	if (!poolstat.IsValid())
+		return hleLogError(SCENET, ERROR_NET_ADHOC_MATCHING_INVALID_ARG, "adhocmatching invalid arg");
+
+	*poolstat = netAdhocPoolStat;
+	poolstat.NotifyWrite("NetAdhocMatchingGetPoolStat");
+
+	// Return Success
+	return 0;
 }
 
 void __NetTriggerCallbacks()
@@ -5856,7 +5879,7 @@ void __NetTriggerCallbacks()
 				break;
 			case ADHOCCTL_EVENT_DISCONNECT:
 				newState = ADHOCCTL_STATE_DISCONNECTED;
-				delayus = adhocDefaultDelay; // Tekken 5 expects AdhocctlDisconnect to be done within ~17ms (a frame?)
+				delayus = adhocDefaultDelay / 2; // Tekken 5 expects AdhocctlDisconnect to be done within ~17ms (a frame time?), but might be safer to be less than a frame time
 				break;
 			case ADHOCCTL_EVENT_GAME: 
 			{
@@ -5915,27 +5938,45 @@ void __NetMatchingCallbacks() //(int matchingId)
 	int delayus = 3000;
 
 	auto params = matchingEvents.begin();
-	if (params != matchingEvents.end()) {
+	if (params != matchingEvents.end())
+	{
 		u32_le args[6];
 		memcpy(args, params->data, sizeof(args));
-		auto context = findMatchingContext(args[0]);
+		auto& ctxid = args[0];
+		auto& eventid = args[1];
+		auto& bufAddr = args[2];
+		auto& optlen = args[3];
+		auto& optDataAddr = args[4];
+		auto& entryPoint = args[5];
+		auto context = findMatchingContext(ctxid);
 
 		if (actionAfterMatchingMipsCall < 0) {
 			actionAfterMatchingMipsCall = __KernelRegisterActionType(AfterMatchingMipsCall::Create);
 		}
+
+		//delayus = adhocMatchingEventDelay; // Add extra delay to prevent I/O Timing method from causing disconnection, but delaying too long may cause matchingEvents to pile up
+		switch (eventid) {
+		case PSP_ADHOC_MATCHING_EVENT_ESTABLISHED:
+			delayus = adhocMatchingDefaultDelay; // Must not takes too long otherwise Def Jam Fight for NY will think the join request got declined
+			break;
+		case PSP_ADHOC_MATCHING_EVENT_DATA_ACK:
+			delayus = adhocMatchingDefaultDelay; // Must not takes too long
+			break;
+		}
+
 		DEBUG_LOG(SCENET, "AdhocMatching - Remaining Events: %zu", matchingEvents.size());
-		auto peer = findPeer(context, (SceNetEtherAddr*)Memory::GetPointer(args[2]));
+		auto peer = findPeer(context, (SceNetEtherAddr*)Memory::GetPointer(bufAddr));
 		// Discard HELLO Events when in the middle of joining, as some games (ie. Super Pocket Tennis) might tried to join again (TODO: Need to confirm whether sceNetAdhocMatchingSelectTarget supposed to be blocking the current thread or not)
-		if (peer == NULL || (args[1] != PSP_ADHOC_MATCHING_EVENT_HELLO || (peer->state != PSP_ADHOC_MATCHING_PEER_OUTGOING_REQUEST && peer->state != PSP_ADHOC_MATCHING_PEER_INCOMING_REQUEST))) {
-			DEBUG_LOG(SCENET, "AdhocMatchingCallback: [ID=%i][EVENT=%i][%s]", args[0], args[1], mac2str((SceNetEtherAddr *)Memory::GetPointer(args[2])).c_str());
+		if (peer == NULL || (eventid != PSP_ADHOC_MATCHING_EVENT_HELLO || (peer->state != PSP_ADHOC_MATCHING_PEER_OUTGOING_REQUEST && peer->state != PSP_ADHOC_MATCHING_PEER_INCOMING_REQUEST))) {
+			DEBUG_LOG(SCENET, "AdhocMatchingCallback: [ID=%i][EVENT=%i][%s]", ctxid, eventid, mac2str((SceNetEtherAddr *)Memory::GetPointer(bufAddr)).c_str());
 		
 			AfterMatchingMipsCall* after = (AfterMatchingMipsCall*)__KernelCreateAction(actionAfterMatchingMipsCall);
-			after->SetData(args[0], args[1], args[2]);
-			hleEnqueueCall(args[5], 5, args, after);
+			after->SetData(ctxid, eventid, bufAddr);
+			hleEnqueueCall(entryPoint, 5, args, after);
 			matchingEvents.pop_front();
 		}
 		else {
-			DEBUG_LOG(SCENET, "AdhocMatching - Discarding Callback: [ID=%i][EVENT=%i][%s]", args[0], args[1], mac2str((SceNetEtherAddr*)Memory::GetPointer(args[2])).c_str());
+			DEBUG_LOG(SCENET, "AdhocMatching - Discarding Callback: [ID=%i][EVENT=%i][%s]", ctxid, eventid, mac2str((SceNetEtherAddr*)Memory::GetPointer(bufAddr)).c_str());
 			matchingEvents.pop_front();
 		}
 	}
@@ -6119,6 +6160,12 @@ static int sceNetAdhocctlGetPeerList(u32 sizeAddr, u32 bufAddr) {
 				DEBUG_LOG(SCENET, "PeerList [Requested: %i][Discovered: %i]", requestcount, discovered);
 			}
 
+			static int prev_peers = 0;
+			if (*buflen < prev_peers) {
+				WARN_LOG(SCENET, "PeerList: Prev (%u) ==> Current (%u)", prev_peers / sizeof(SceNetAdhocctlPeerInfoEmu), *buflen / sizeof(SceNetAdhocctlPeerInfoEmu));
+			}
+			prev_peers = *buflen;
+
 			// Multithreading Unlock
 			peerlock.unlock();
 
@@ -6252,11 +6299,11 @@ static int sceNetAdhocctlGetAddrByName(const char *nickName, u32 sizeAddr, u32 b
 }
 
 const HLEFunction sceNetAdhocctl[] = {
-	{0XE26F226E, &WrapU_IIU<sceNetAdhocctlInit>,                       "sceNetAdhocctlInit",                     'x', "iix"      },
+	{0XE26F226E, &WrapI_IIU<sceNetAdhocctlInit>,                       "sceNetAdhocctlInit",                     'i', "iix"      },
 	{0X9D689E13, &WrapI_V<sceNetAdhocctlTerm>,                         "sceNetAdhocctlTerm",                     'i', ""         },
 	{0X20B317A0, &WrapU_UU<sceNetAdhocctlAddHandler>,                  "sceNetAdhocctlAddHandler",               'x', "xx"       },
 	{0X6402490B, &WrapU_U<sceNetAdhocctlDelHandler>,                   "sceNetAdhocctlDelHandler",               'x', "x"        },
-	{0X34401D65, &WrapU_V<sceNetAdhocctlDisconnect>,                   "sceNetAdhocctlDisconnect",               'x', ""         },
+	{0X34401D65, &WrapI_V<sceNetAdhocctlDisconnect>,                   "sceNetAdhocctlDisconnect",               'i', ""         },
 	{0X0AD043ED, &WrapI_C<sceNetAdhocctlConnect>,                      "sceNetAdhocctlConnect",                  'i', "s"        },
 	{0X08FFF7A0, &WrapI_V<sceNetAdhocctlScan>,                         "sceNetAdhocctlScan",                     'i', ""         },
 	{0X75ECD386, &WrapI_U<sceNetAdhocctlGetState>,                     "sceNetAdhocctlGetState",                 'i', "x"        },

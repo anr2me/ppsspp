@@ -44,7 +44,7 @@ static const float FONT_SCALE = 0.65f;
 
 // Needs testing.
 const static int NET_INIT_DELAY_US = 200000; 
-const static int NET_SHUTDOWN_DELAY_US = 200000; 
+const static int NET_SHUTDOWN_DELAY_US = 501000; 
 const static int NET_CONNECT_TIMEOUT = 15000000; // Using 15 secs to match the timeout on Adhoc Server side (SERVER_USER_TIMEOUT)
 
 struct ScanInfos {
@@ -79,6 +79,7 @@ int PSPNetconfDialog::Init(u32 paramAddr) {
 	connResult = -1;
 	scanInfosAddr = 0;
 	scanStep = 0;
+	canceling = false;
 	startTime = (u64)(time_now_d() * 1000000.0);
 
 	StartFade(true);
@@ -244,6 +245,7 @@ int PSPNetconfDialog::Update(int animSpeed) {
 	// It seems JPCSP doesn't check for NETCONF_STATUS_APNET
 	if (request.netAction == NETCONF_CONNECT_APNET || request.netAction == NETCONF_STATUS_APNET || request.netAction == NETCONF_CONNECT_APNET_LAST) {
 		int state = NetApctl_GetState();
+		bool timedout = (state == PSP_NET_APCTL_STATE_DISCONNECTED && now - startTime > NET_CONNECT_TIMEOUT);
 
 		UpdateFade(animSpeed);
 		StartDraw();
@@ -285,33 +287,69 @@ int PSPNetconfDialog::Update(int animSpeed) {
 			DrawBanner();
 			DrawIndicator();
 
-			if (state == PSP_NET_APCTL_STATE_GOT_IP || state == PSP_NET_APCTL_STATE_GETTING_IP) {
-				DisplayMessage(di->T("ObtainingIP", "Obtaining IP address.\nPlease wait..."), di->T("ConnectionName", "Connection Name"), netApctlInfo.name, di->T("SSID"), netApctlInfo.ssid);
+			if (!g_Config.bEnableWlan) {
+				DisplayMessage(di->T("WlanIsOff", "A connection error has occurred.\nThe WIRELESS switch on the PPSSPP system is not turned on."), di->T("ConnectionName", "Connection Name"), netApctlInfo.name, di->T("SSID"), netApctlInfo.ssid);
+				DisplayButtons(DS_BUTTON_CANCEL, di->T("Back"));
+			}
+			else if (timedout) {
+				// FIXME: Do we need to show error message on timeout?
+				DisplayMessage(di->T("InternalError", "An internal error has occurred.") + StringFromFormat("\n(%08X)", connResult));
+				DisplayButtons(DS_BUTTON_CANCEL, di->T("Back"));
+			}
+			else if (canceling) {
+				DisplayMessage(di->T("CancelingPleaseWait", "Canceling.\nPlease wait..."), di->T("ConnectionName", "Connection Name"), netApctlInfo.name, di->T("SSID"), netApctlInfo.ssid);
 			}
 			else {
-				// Skipping the Select Connection screen since we only have 1 fake profile
-				DisplayMessage(di->T("ConnectingAP", "Connecting to the access point.\nPlease wait..."), di->T("ConnectionName", "Connection Name"), netApctlInfo.name, di->T("SSID"), netApctlInfo.ssid);
-			}
-			DisplayButtons(DS_BUTTON_CANCEL, di->T("Cancel"));
 
-			// The Netconf dialog stays visible until the network reaches the state PSP_NET_APCTL_STATE_GOT_IP.			
+				if (state == PSP_NET_APCTL_STATE_GOT_IP || state == PSP_NET_APCTL_STATE_GETTING_IP) {
+					DisplayMessage(di->T("ObtainingIP", "Obtaining IP address.\nPlease wait..."), di->T("ConnectionName", "Connection Name"), netApctlInfo.name, di->T("SSID"), netApctlInfo.ssid);
+				}
+				else {
+					// Skipping the Select Connection screen since we only have 1 fake profile
+					DisplayMessage(di->T("ConnectingAP", "Connecting to the access point.\nPlease wait..."), di->T("ConnectionName", "Connection Name"), netApctlInfo.name, di->T("SSID"), netApctlInfo.ssid);
+					DisplayButtons(DS_BUTTON_CANCEL, di->T("Cancel"));
+				}
+
+				// The Netconf dialog stays visible until the network reaches the state PSP_NET_APCTL_STATE_GOT_IP.			
+				if (state == PSP_NET_APCTL_STATE_GOT_IP) {
+					if (pendingStatus != SCE_UTILITY_STATUS_FINISHED) {
+						StartFade(false);
+						ChangeStatus(SCE_UTILITY_STATUS_FINISHED, NET_SHUTDOWN_DELAY_US);
+					}
+				}
+
+				else if (state == PSP_NET_APCTL_STATE_JOINING) {
+					// Switch to the next (Obtaining IP) message animation
+					// TODO: Should be animating the top and bottom lines widening-from-the-middle animation instead of fading-out and in
+					//StartFade(true); 
+				}
+
+				else if (state == PSP_NET_APCTL_STATE_DISCONNECTED) {
+					// FIXME: Based on JPCSP+official prx, sceNetApctl* calls supposed to runs on SceDialogmainGraphics thread instead of current thread where Update is being called (ie. Main), thus animation smoothness won't be affected by blocking syscalls
+					// When connecting with infrastructure, simulate a connection using the first network configuration entry.
+					if (connResult < 0 && (now - startTime > 2000000)) {
+						connResult = sceNetApctlConnect(1);
+					}
+				}
+			}
+
+			// The Netconf dialog stays visible until the network reaches the state PSP_NET_APCTL_STATE_GOT_IP.
 			if (state == PSP_NET_APCTL_STATE_GOT_IP) {
+				// Checking pendingStatus to make sure ChangeStatus not to continously extending the delay ticks on every call for eternity
 				if (pendingStatus != SCE_UTILITY_STATUS_FINISHED) {
 					StartFade(false);
 					ChangeStatus(SCE_UTILITY_STATUS_FINISHED, NET_SHUTDOWN_DELAY_US);
 				}
 			}
 
-			else if (state == PSP_NET_APCTL_STATE_JOINING) {
-				// Switch to the next message
-				StartFade(true);
-			}
-
-			else if (state == PSP_NET_APCTL_STATE_DISCONNECTED) {
-				// When connecting with infrastructure, simulate a connection using the first network configuration entry.
-				if (connResult < 0) {
-					connResult = sceNetApctlConnect(1);
+			if (!canceling && state != PSP_NET_APCTL_STATE_GOT_IP && state != PSP_NET_APCTL_STATE_GETTING_IP && IsButtonPressed(cancelButtonFlag)) {
+				if (state != PSP_NET_APCTL_STATE_DISCONNECTED) {
+					canceling = true;
+					sceNetApctlDisconnect();
 				}
+				StartFade(false);
+				ChangeStatus(SCE_UTILITY_STATUS_FINISHED, NET_SHUTDOWN_DELAY_US);
+				request.common.result = SCE_UTILITY_DIALOG_RESULT_ABORT;
 			}
 		}
 
@@ -320,6 +358,9 @@ int PSPNetconfDialog::Update(int animSpeed) {
 	else if (request.netAction == NETCONF_CONNECT_ADHOC || request.netAction == NETCONF_CREATE_ADHOC || request.netAction == NETCONF_JOIN_ADHOC) {
 		int state = NetAdhocctl_GetState();
 		bool timedout = (state == ADHOCCTL_STATE_DISCONNECTED && now - startTime > NET_CONNECT_TIMEOUT);
+		std::string channel = std::to_string(g_Config.iWlanAdhocChannel);
+		if (g_Config.iWlanAdhocChannel == PSP_SYSTEMPARAM_ADHOC_CHANNEL_AUTOMATIC)
+			channel = "Automatic";
 
 		UpdateFade(animSpeed);
 		StartDraw();
@@ -327,16 +368,19 @@ int PSPNetconfDialog::Update(int animSpeed) {
 		DrawBanner();
 		DrawIndicator();
 
-		if (timedout) {
-			// FIXME: Do we need to show error message?
+		if (!g_Config.bEnableWlan) {
+			DisplayMessage(di->T("WlanIsOff", "A connection error has occurred.\nThe WIRELESS switch on the PPSSPP system is not turned on."));
+			DisplayButtons(DS_BUTTON_CANCEL, di->T("Back"));
+		}
+		else if (timedout) {
+			// FIXME: Do we need to show error message on timeout?
 			DisplayMessage(di->T("InternalError", "An internal error has occurred.") + StringFromFormat("\n(%08X)", connResult));
 			DisplayButtons(DS_BUTTON_CANCEL, di->T("Back"));
 		}
+		else if (canceling) {
+			DisplayMessage(di->T("CancelingPleaseWait", "Canceling.\nPlease wait..."), di->T("Channel:") + std::string(" ") + di->T(channel));
+		}
 		else {
-			std::string channel = std::to_string(g_Config.iWlanAdhocChannel);
-			if (g_Config.iWlanAdhocChannel == PSP_SYSTEMPARAM_ADHOC_CHANNEL_AUTOMATIC)
-				channel = "Automatic";
-
 			DisplayMessage(di->T("ConnectingPleaseWait", "Connecting.\nPlease wait..."), di->T("Channel:") + std::string(" ") + di->T(channel));
 
 			// Only Join mode is showing Cancel button on KHBBS and the button will fade out before the dialog is fading out, probably because it's already connected thus can't be canceled anymore
@@ -345,6 +389,7 @@ int PSPNetconfDialog::Update(int animSpeed) {
 
 			// KHBBS will first enter the arena using NETCONF_CONNECT_ADHOC (auto-create group when not exist yet?), but when the event started the event's creator use NETCONF_CREATE_ADHOC while the joining players use NETCONF_JOIN_ADHOC
 			if (request.NetconfData.IsValid()) {
+				// FIXME: Based on JPCSP+official prx, sceNetAdhocctl* calls supposed to runs on SceDialogmainGraphics thread instead of current thread where Update is being called (ie. Main), thus animation smoothness won't be affected by blocking syscalls
 				if (state == ADHOCCTL_STATE_DISCONNECTED) {
 					switch (request.netAction)
 					{
@@ -441,7 +486,11 @@ int PSPNetconfDialog::Update(int animSpeed) {
 			scanInfosAddr = 0;
 		}
 
-		if ((request.netAction == NETCONF_JOIN_ADHOC || timedout) && IsButtonPressed(cancelButtonFlag)) {
+		if ((request.netAction == NETCONF_JOIN_ADHOC || timedout || !g_Config.bEnableWlan) && IsButtonPressed(cancelButtonFlag)) {
+			if (state != ADHOCCTL_STATE_DISCONNECTED) {
+				canceling = true;
+				sceNetAdhocctlDisconnect();
+			}
 			StartFade(false);
 			ChangeStatus(SCE_UTILITY_STATUS_FINISHED, NET_SHUTDOWN_DELAY_US);
 			request.common.result = SCE_UTILITY_DIALOG_RESULT_ABORT;
@@ -454,9 +503,6 @@ int PSPNetconfDialog::Update(int animSpeed) {
 		EndDraw();
 	}
 
-	if (ReadStatus() == SCE_UTILITY_STATUS_FINISHED || pendingStatus == SCE_UTILITY_STATUS_FINISHED)
-		Memory::Memcpy(requestAddr, &request, request.common.size, "NetConfDialogParam");
-
 	return 0;
 }
 
@@ -468,6 +514,10 @@ int PSPNetconfDialog::Shutdown(bool force) {
 	if (!force) {
 		ChangeStatusShutdown(NET_SHUTDOWN_DELAY_US);
 	}
+
+	// FIXME: This should probably be done within FinishShutdown? since FinishShutdown is not overrideable, Shutdown is the closes method
+	if (Memory::IsValidAddress(requestAddr)) // Need to validate first to prevent Invalid address when the game is being Shutdown/Exited to menu
+		Memory::Memcpy(requestAddr, &request, request.common.size, "NetConfDialogParam");
 
 	return 0;
 }
