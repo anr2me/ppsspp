@@ -37,10 +37,13 @@ jobs:
         run: |
           echo "const char *PPSSPP_GIT_VERSION = \"${PPSSPP_GIT_VERSION}\";" > git-version.cpp
           echo "#define PPSSPP_GIT_VERSION_NO_UPDATE 1" >> git-version.cpp
-          echo $(echo $PPSSPP_GIT_VERSION | cut -c 2-) > Version.txt
+          mkdir build-ios
+          mkdir build-ios/PPSSPP.app
+          echo $(echo $PPSSPP_GIT_VERSION | cut -c 2-) > build-ios/PPSSPP.app/Version.txt
           echo "Content of [GITHUB_REF##*/] = ${GITHUB_REF##*/}"
           echo "Content of [PPSSPP_GIT_VERSION] = ${PPSSPP_GIT_VERSION}"
           echo $(echo $PPSSPP_GIT_VERSION | cut -c 2-)
+          find . -name "Version.txt"
           
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@main
@@ -57,6 +60,7 @@ jobs:
       
       - name: Package build
         run: |
+          find . -name "Version.txt"
           find . -name "*.app"
           mkdir ppsspp
           if [ -e build*/PPSSPP.app ]; then
