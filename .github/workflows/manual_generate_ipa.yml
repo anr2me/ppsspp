@@ -33,6 +33,7 @@ jobs:
         run: |
           echo "const char *PPSSPP_GIT_VERSION = \"${GITHUB_REF##*/}\";" > git-version.cpp
           echo "#define PPSSPP_GIT_VERSION_NO_UPDATE 1" >> git-version.cpp
+          echo "const char *PPSSPP_GIT_VERSION = \"${GITHUB_REF##*/}\";"
           
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@main
