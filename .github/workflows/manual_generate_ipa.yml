@@ -28,10 +28,13 @@ jobs:
       #  # This is required for git describe --always to work for git-version.cpp.
       #  run: |
       #    git fetch --deepen=15000 --no-recurse-submodules --tags || exit 0
+
+      - name: Set Env Var(s)
+        run: |
+          echo "PPSSPP_GIT_VERSION=$(git describe --always)" >> $GITHUB_ENV
         
       - name: Create macOS git-version.cpp
         run: |
-          echo "PPSSPP_GIT_VERSION=$(git describe --always)" >> $GITHUB_ENV
           echo "const char *PPSSPP_GIT_VERSION = \"${PPSSPP_GIT_VERSION}\";" > git-version.cpp
           echo "#define PPSSPP_GIT_VERSION_NO_UPDATE 1" >> git-version.cpp
           echo "Content of [GITHUB_REF##*/] = ${GITHUB_REF##*/}"
