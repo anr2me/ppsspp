@@ -35,7 +35,7 @@ jobs:
           echo "#define PPSSPP_GIT_VERSION_NO_UPDATE 1" >> git-version.cpp
           
       - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
+        uses: hendrikmuhs/ccache-action@main
         with:
           create-symlink: true
       
