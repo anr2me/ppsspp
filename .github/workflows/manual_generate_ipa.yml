@@ -37,9 +37,10 @@ jobs:
         run: |
           echo "const char *PPSSPP_GIT_VERSION = \"${PPSSPP_GIT_VERSION}\";" > git-version.cpp
           echo "#define PPSSPP_GIT_VERSION_NO_UPDATE 1" >> git-version.cpp
+          echo $(echo $PPSSPP_GIT_VERSION | cut -c 2-) > Version.txt
           echo "Content of [GITHUB_REF##*/] = ${GITHUB_REF##*/}"
           echo "Content of [PPSSPP_GIT_VERSION] = ${PPSSPP_GIT_VERSION}"
-          echo "Content of [GIT_VERSION] = ${GIT_VERSION}"
+          echo $(echo $PPSSPP_GIT_VERSION | cut -c 2-)
           
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@main
