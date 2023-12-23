@@ -1,0 +1,68 @@
+name: Manual Generate IPA
+on:
+  workflow_dispatch:
+    inputs:
+
+      buildVariant:
+        type: choice
+        description: 'Build Variant'     
+        required: true
+        default: 'release'
+        options: 
+        - release
+        - debug
+
+jobs:
+
+  apk:
+    name: Generate ${{ github.event.inputs.buildVariant }} IPA
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: recursive
+        
+      #- name: Fetch tags for macOS
+      #  # This is required for git describe --always to work for git-version.cpp.
+      #  run: |
+      #    git fetch --deepen=15000 --no-recurse-submodules --tags || exit 0
+        
+      - name: Create macOS git-version.cpp
+        run: |
+          echo "const char *PPSSPP_GIT_VERSION = \"${GITHUB_REF##*/}\";" > git-version.cpp
+          echo "#define PPSSPP_GIT_VERSION_NO_UPDATE 1" >> git-version.cpp
+          
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+      
+      - name: Execute build
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
+          ./b.sh --ios --${{ github.event.inputs.buildVariant }}
+      
+      - name: Package build
+        run: |
+          find . -name "*.app"
+          mkdir ppsspp
+          if [ -e build*/PPSSPP.app ]; then
+            mkdir ppsspp/Payload
+            cp -a build*/PPSSPP.app ppsspp/Payload
+            # GitHub Actions zipping kills symlinks and permissions.
+            cd ppsspp
+            zip -qry PPSSPP.ipa Payload
+            rm -rf Payload
+            cd -
+          fi
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v3
+        with:
+          name: iOS-${{ github.event.inputs.buildVariant }} build
+          path: ppsspp/
