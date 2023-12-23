@@ -29,21 +29,22 @@ jobs:
       #  run: |
       #    git fetch --deepen=15000 --no-recurse-submodules --tags || exit 0
 
-      - name: Set Env Var(s)
-        run: |
-          echo "PPSSPP_GIT_VERSION=$(git describe --always)" >> $GITHUB_ENV
+      #- name: Set Env Var(s)
+      #  run: |
+      #    echo "PPSSPP_GIT_VERSION=$(git describe --always)" >> $GITHUB_ENV
         
-      - name: Create macOS git-version.cpp
+      - name: Create macOS git-version.cpp and Version.txt
         run: |
-          echo "const char *PPSSPP_GIT_VERSION = \"${PPSSPP_GIT_VERSION}\";" > git-version.cpp
+          echo "const char *PPSSPP_GIT_VERSION = \"${GIT_VERSION}\";" > git-version.cpp
           echo "#define PPSSPP_GIT_VERSION_NO_UPDATE 1" >> git-version.cpp
-          mkdir build-ios
-          mkdir build-ios/PPSSPP.app
-          echo $(echo $PPSSPP_GIT_VERSION | cut -c 2-) > build-ios/PPSSPP.app/Version.txt
+          echo $(echo $GIT_VERSION | cut -c 2-) > build-ios/PPSSPP.app/Version.txt
+          # Testing values ...
           echo "Content of [GITHUB_REF##*/] = ${GITHUB_REF##*/}"
-          echo "Content of [PPSSPP_GIT_VERSION] = ${PPSSPP_GIT_VERSION}"
-          echo $(echo $PPSSPP_GIT_VERSION | cut -c 2-)
+          echo $(echo $GIT_VERSION | cut -c 2-)
+          # Testing file location ...
           find . -name "Version.txt"
+        env:
+          GIT_VERSION: $(git describe --always)
           
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@main
@@ -60,6 +61,7 @@ jobs:
       
       - name: Package build
         run: |
+          # Testing file location ...
           find . -name "Version.txt"
           find . -name "*.app"
           mkdir ppsspp
