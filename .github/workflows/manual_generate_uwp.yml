@@ -1,0 +1,74 @@
+name: Manual Generate UWP APPX
+on:
+  workflow_dispatch:
+    inputs:
+
+      buildConfiguration:
+        type: choice
+        description: 'Build Configuration'
+        required: true
+        default: 'Release'
+        options: 
+        - Release
+        - Debug
+
+      buildPlatform:
+        type: choice
+        description: 'Build Platform'
+        required: true
+        default: 'x64'
+        options: 
+        - x64
+        - ARM64
+        - ARM
+
+jobs:
+
+  build-uwp:
+    name: Generate ${{ github.event.inputs.buildConfiguration }} UWP
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: recursive
+        
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v1.1
+          
+      - name: Setup cache
+        id: cache-uwp
+        uses: actions/cache@v3
+        with:
+          key: uwp-${{ github.event.inputs.buildConfiguration }}-${{ github.event.inputs.buildPlatform }}
+      
+      - name: Execute build
+        working-directory: ${{ env.GITHUB_WORKSPACE }}
+        run: msbuild /m /p:TrackFileAccess=false /p:Configuration=${{ github.event.inputs.buildConfiguration }} /p:Platform=${{ github.event.inputs.buildPlatform }} /p:AppxPackageSigningEnabled=false /p:AppxBundle=Always /p:AppxBundlePlatforms="x64|ARM64" UWP/PPSSPP_UWP.sln
+      
+      - name: Package build
+        working-directory: ${{ env.GITHUB_WORKSPACE }}
+        run: |
+          mkdir ppsspp
+          cp PPSSPP*.exe ppsspp/
+          cp *.pdb ppsspp/
+          cp AppxManifest.xml ppsspp/
+          cp AppxManifest.xml ppsspp/
+          cp PPSSPP_UWP.build.appxrecipe ppsspp/
+          cp resources.pri ppsspp/
+          cp UWP.winmd ppsspp/
+          #cp Windows/*.bat ppsspp/
+          cp -r assets ppsspp/Content
+          # Testing values ...
+          echo "Content of [env.GITHUB_WORKSPACE] = ${env.GITHUB_WORKSPACE}"
+          # Testing file location ...
+          find . -name "PPSSPP*.exe"
+          find . -name "AppPackages"
+          find . -name "*.msix"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: UWP-${{ github.event.inputs.buildConfiguration }}-${{ github.event.inputs.buildPlatform }} build
+          path: ppsspp/
