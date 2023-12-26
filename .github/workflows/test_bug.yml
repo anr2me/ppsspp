@@ -1,0 +1,53 @@
+name: Testing Bug
+on:
+  workflow_dispatch:
+    inputs:
+
+      buildConfiguration:
+        type: choice
+        description: 'Build Configuration'
+        required: true
+        default: 'Release'
+        options: 
+        - Release
+        - Debug
+
+      buildPlatform:
+        type: choice
+        description: 'Build Platform'
+        required: true
+        default: 'x64'
+        options: 
+        - x64
+        - ARM64
+        - ARM
+
+jobs:
+
+  build-uwp:
+    name: Generate ${{ github.event.inputs.buildConfiguration }} UWP
+    runs-on: windows-latest
+
+    steps:
+      #- uses: actions/checkout@v3
+      #  with:
+      #    fetch-depth: 0
+      #    submodules: recursive
+        
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v1.1
+
+      - name: Testing values
+        run: |
+          # Testing values ...
+          env
+          echo "Content of [env.GITHUB_WORKSPACE] = ${env.GITHUB_WORKSPACE}"
+          echo "Content of [[env.GITHUB_WORKSPACE]] = ${{env.GITHUB_WORKSPACE}}"
+          echo "Content of [env:GITHUB_WORKSPACE] = ${env:GITHUB_WORKSPACE}"
+          # echo "Content of [[env:GITHUB_WORKSPACE]] = ${{env:GITHUB_WORKSPACE}}" # This line (commented or not) will make this YML file to be invalid and showing an error at the wrong line (a bug in the YAML parser may be?)
+          echo "Content of [github.workspace] = ${github.workspace}"
+          echo "Content of [[github.workspace]] = ${{github.workspace}}"
+          echo "one ${ github.event.inputs.buildPlatform }"
+          echo ${{github.workspace}}
+          echo "two ${{ github.event.inputs.buildPlatform }}"
+          echo $env:GITHUB_WORKSPACE
