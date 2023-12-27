@@ -44,7 +44,6 @@ jobs:
           echo "Content of [env.GITHUB_WORKSPACE] = ${env.GITHUB_WORKSPACE}"
           echo "Content of [[env.GITHUB_WORKSPACE]] = ${{env.GITHUB_WORKSPACE}}"
           echo "Content of [env:GITHUB_WORKSPACE] = ${env:GITHUB_WORKSPACE}"
-          # echo "Content of [[env:GITHUB_WORKSPACE]] = ${{env:GITHUB_WORKSPACE}}" # This line (commented or not) will make this YML file to be invalid and showing an error at the wrong line (a bug in the YAML parser may be?)
           echo "Content of [github.workspace] = ${github.workspace}"
           echo "Content of [[github.workspace]] = ${{github.workspace}}"
           echo "one ${ github.event.inputs.buildPlatform }"
