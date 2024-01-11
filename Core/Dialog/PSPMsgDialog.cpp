@@ -32,7 +32,7 @@ static const float FONT_SCALE = 0.65f;
 
 // These are rough, it seems to take a long time to init, and probably depends on threads.
 // TODO: This takes like 700ms on a PSP but that's annoyingly long.
-const static int MSG_INIT_DELAY_US = 300000;
+const static int MSG_INIT_DELAY_US = 350000;
 const static int MSG_SHUTDOWN_DELAY_US = 26000;
 
 PSPMsgDialog::PSPMsgDialog(UtilityDialogType type) : PSPDialog(type) {

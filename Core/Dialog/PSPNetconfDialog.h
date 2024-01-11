@@ -60,6 +60,7 @@ private:
 	u32 requestAddr = 0;
 	int connResult = -1;
 	bool hideNotice = false;
+	bool canceling = false;
 
 	int yesnoChoice = 0;
 	float scrollPos_ = 0.0f;

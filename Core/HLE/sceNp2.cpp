@@ -139,13 +139,14 @@ static int sceNpMatching2ContextStart(int ctxId)
 
 	client.SetDataTimeout(20.0);
 	if (client.Connect()) {
-		char requestHeaders[4096];
-		snprintf(requestHeaders, sizeof(requestHeaders),
-			"User-Agent: PS3Community-agent/1.0.0 libhttp/1.0.0\r\n");
+		//char requestHeaders[4096];
+		//snprintf(requestHeaders, sizeof(requestHeaders),
+		//	"User-Agent: PS3Community-agent/1.0.0 libhttp/1.0.0\r\n");
+		client.SetUserAgent("PS3Community-agent/1.0.0 libhttp/1.0.0");
 
 		DEBUG_LOG(SCENET, "GET URI: %s", url.ToString().c_str());
 		http::RequestParams req(url.Resource(), "*/*");
-		int err = client.SendRequest("GET", req, requestHeaders, &progress);
+		int err = client.SendRequest("GET", req, nullptr, &progress);
 		if (err < 0) {
 			client.Disconnect();
 			return hleLogError(SCENET, SCE_NP_COMMUNITY_SERVER_ERROR_NO_SUCH_TITLE, "HTTP GET Error = %d", err);
@@ -405,7 +406,8 @@ static int sceNpMatching2GetServerInfo(int ctxId, u32 serverIdPtr, u32 unknown1P
 		//args.data[9] = 0 or a pointer to a struct related to context and matched serverId?
 		//args.data[10] = serverId;
 
-		notifyNpMatching2Handlers(args, ctxId, serverId, 0, 0, 0, 0, 0, 1);
+		// Note: Temporary commenting the callback notification, as it's still experimental and could crash the game (ie. Fat Princess), the game seems to expects a callback to occurs in order to progress.
+		//notifyNpMatching2Handlers(args, ctxId, serverId, 0, 0, 0, 0, 0, 1);
 
 		Memory::Write_U32(args.data[1], unknown2Ptr); // server status or flags?
 	}

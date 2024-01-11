@@ -436,6 +436,8 @@ public:
 
 	// Networking
 	std::string proAdhocServer;
+	std::string primaryDNSServer;
+	std::string secondaryDNSServer;
 	bool bEnableWlan;
 	bool bEnableAdhocServer;
 	bool bEnableUPnP;

@@ -70,6 +70,22 @@
 #undef EALREADY
 #undef ETIMEDOUT
 #undef EOPNOTSUPP
+#undef ENOTSOCK
+#undef EPROTONOSUPPORT
+#undef ESOCKTNOSUPPORT
+#undef EPFNOSUPPORT
+#undef EAFNOSUPPORT
+#undef EINTR
+#undef EACCES
+#undef EFAULT
+#undef EINVAL
+#undef ENOSPC
+#undef EHOSTDOWN
+#undef EADDRINUSE
+#undef EADDRNOTAVAIL
+#undef ENETUNREACH
+#undef EHOSTUNREACH
+#undef ENETDOWN
 #define errno WSAGetLastError()
 #define ESHUTDOWN WSAESHUTDOWN
 #define ECONNABORTED WSAECONNABORTED
@@ -84,6 +100,22 @@
 #define EALREADY WSAEALREADY
 #define ETIMEDOUT WSAETIMEDOUT
 #define EOPNOTSUPP WSAEOPNOTSUPP
+#define ENOTSOCK WSAENOTSOCK
+#define EPROTONOSUPPORT WSAEPROTONOSUPPORT
+#define ESOCKTNOSUPPORT WSAESOCKTNOSUPPORT
+#define EPFNOSUPPORT WSAEPFNOSUPPORT
+#define EAFNOSUPPORT WSAEAFNOSUPPORT
+#define EINTR WSAEINTR
+#define EACCES WSAEACCES
+#define EFAULT WSAEFAULT
+#define EINVAL WSAEINVAL
+#define ENOSPC ERROR_INVALID_PARAMETER
+#define EHOSTDOWN WSAEHOSTDOWN
+#define EADDRINUSE WSAEADDRINUSE
+#define EADDRNOTAVAIL WSAEADDRNOTAVAIL
+#define ENETUNREACH WSAENETUNREACH
+#define EHOSTUNREACH WSAEHOSTUNREACH
+#define ENETDOWN WSAENETDOWN
 inline bool connectInProgress(int errcode){ return (errcode == WSAEWOULDBLOCK || errcode == WSAEINPROGRESS || errcode == WSAEALREADY || errcode == WSAEINVAL); } // WSAEINVAL should be treated as WSAEALREADY during connect for backward-compatibility with Winsock 1.1 
 inline bool isDisconnected(int errcode) { return (errcode == WSAECONNRESET || errcode == WSAECONNABORTED || errcode == WSAESHUTDOWN); }
 #else
@@ -681,6 +713,10 @@ enum {
 const size_t MAX_ADHOCCTL_HANDLERS = 32; //4
 const size_t MAX_MATCHING_HANDLERS = 32; //4
 
+#define PSP_NET_ADHOC_MATCHING_MAXNUM			16
+#define PSP_NET_ADHOC_MATCHING_MAXOPTLEN		65511
+#define PSP_NET_ADHOC_MATCHING_MAXHELLOOPTLEN	65503
+
 enum {
 	/**
 	* Matching events used in pspAdhocMatchingCallback
@@ -943,7 +979,7 @@ extern SockAddrIN4 g_localhostIP; // Used to differentiate localhost IP on multi
 extern sockaddr LocalIP; // IP of Network Adapter used to connect to Adhoc Server (LAN/WAN)
 extern int defaultWlanChannel; // Default WLAN Channel for Auto, JPCSP uses 11
 
-extern uint32_t fakePoolSize;
+extern SceNetMallocStat netAdhocPoolStat;
 extern SceNetAdhocMatchingContext * contexts;
 extern char* dummyPeekBuf64k;
 extern int dummyPeekBuf64kSize;
@@ -1304,12 +1340,28 @@ uint32_t getLocalIp(int sock);
 /*
  * Check if an IP (big-endian/network order) is Private or Public IP
  */
+bool isMulticastIP(uint32_t ip);
+
+/*
+ * Check if an IP (big-endian/network order) is a Multicast IP
+ */
 bool isPrivateIP(uint32_t ip);
+
+/*
+ * Check if an IP (big-endian/network order) is APIPA(169.254.x.x) IP
+ */
+bool isAPIPA(uint32_t ip);
 
 /*
  * Check if an IP (big-endian/network order) is Loopback IP
  */
 bool isLoopbackIP(uint32_t ip);
+
+/*
+ * Check if an IP (big-endian/network order) is a Broadcast IP
+ * Default subnet mask is 255.255.255.0
+ */
+bool isBroadcastIP(uint32_t ip, const uint32_t subnetmask = 0x00ffffff);
 
 /*
  * Get Number of bytes available in buffer to be Received
@@ -1325,11 +1377,23 @@ int getSockMaxSize(int udpsock);
 
 /*
  * Get Socket Buffer Size (opt = SO_RCVBUF/SO_SNDBUF)
+ * Note: The value might be twice of the value being set using setsockopt
  */
 int getSockBufferSize(int sock, int opt);
 
 /*
 * Set Socket Buffer Size (opt = SO_RCVBUF/SO_SNDBUF)
+* Notes:
+*	SO_RCVBUF: Sets or gets the maximum socket receive buffer in bytes.  
+*			   The kernel doubles this value (to allow space for 
+*			   bookkeeping overhead) when it is set using setsockopt(2),
+*			   and this doubled value is returned by getsockopt(2).
+*			   The minimum (doubled) value for this option is 256.
+*	SO_SNDBUF: Sets or gets the maximum socket send buffer in bytes.
+*			   The kernel doubles this value (to allow space for
+*			   bookkeeping overhead) when it is set using setsockopt(2),
+*			   and this doubled value is returned by getsockopt(2).
+*			   The minimum (doubled) value for this option is 2048.
 */
 int setSockBufferSize(int sock, int opt, int size);
 
