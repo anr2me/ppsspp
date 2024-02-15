@@ -31,7 +31,9 @@ extern "C" {
 #include "libavformat/avformat.h"
 #include "libswresample/swresample.h"
 #include "libavutil/samplefmt.h"
+#include "libavcodec/avcodec.h"
 }
+#include "Core/FFMPEGCompat.h"
 
 #endif  // USE_FFMPEG
 

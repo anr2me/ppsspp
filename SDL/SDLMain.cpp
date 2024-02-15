@@ -206,13 +206,12 @@ static void UpdateScreenDPI(SDL_Window *window) {
 
 // Simple implementations of System functions
 
-
-void System_Toast(const char *text) {
+void System_Toast(std::string_view text) {
 #ifdef _WIN32
 	std::wstring str = ConvertUTF8ToWString(text);
 	MessageBox(0, str.c_str(), L"Toast!", MB_ICONINFORMATION);
 #else
-	puts(text);
+    printf("%*.s", (int)text.length(), text.data());
 #endif
 }
 
@@ -563,9 +562,9 @@ bool System_GetPropertyBool(SystemProperty prop) {
 #if PPSSPP_PLATFORM(SWITCH)
 	case SYSPROP_HAS_TEXT_INPUT_DIALOG:
 		return __nx_applet_type == AppletType_Application || __nx_applet_type != AppletType_SystemApplication;
+#endif
 	case SYSPROP_HAS_KEYBOARD:
 		return true;
-#endif
 	case SYSPROP_APP_GOLD:
 #ifdef GOLD
 		return true;
@@ -675,17 +674,7 @@ static void EmuThreadFunc(GraphicsContext *graphicsContext) {
 	NativeInitGraphics(graphicsContext);
 
 	while (emuThreadState != (int)EmuThreadState::QUIT_REQUESTED) {
-		double startTime = time_now_d();
-
 		UpdateRunLoop(graphicsContext);
-
-		// Simple throttling to not burn the GPU in the menu.
-		if (GetUIState() != UISTATE_INGAME || !PSP_IsInited()) {
-			double diffTime = time_now_d() - startTime;
-			int sleepTime = (int)(1000.0 / 60.0) - (int)(diffTime * 1000.0);
-			if (sleepTime > 0)
-				sleep_ms(sleepTime);
-		}
 	}
 	emuThreadState = (int)EmuThreadState::STOPPED;
 	graphicsContext->StopThread();
@@ -867,7 +856,7 @@ static void ProcessSDLEvent(SDL_Window *window, const SDL_Event &event, InputSta
 	case SDL_TEXTINPUT:
 		{
 			int pos = 0;
-			int c = u8_nextchar(event.text.text, &pos);
+			int c = u8_nextchar(event.text.text, &pos, strlen(event.text.text));
 			KeyInput key;
 			key.flags = KEY_CHAR;
 			key.unicodeChar = c;

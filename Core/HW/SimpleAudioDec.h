@@ -27,6 +27,14 @@ struct AVCodec;
 struct AVCodecContext;
 struct SwrContext;
 
+#ifdef USE_FFMPEG
+
+extern "C" {
+#include "libavutil/version.h"
+};
+
+#endif
+
 // Wraps FFMPEG for audio decoding in a nice interface.
 // Decodes packet by packet - does NOT demux.
 
@@ -78,6 +86,9 @@ private:
 	int wanted_resample_freq; // wanted resampling rate/frequency
 
 	AVFrame *frame_;
+#if HAVE_LIBAVCODEC_CONST_AVCODEC // USE_FFMPEG is implied
+	const
+#endif
 	AVCodec *codec_;
 	AVCodecContext  *codecCtx_;
 	SwrContext      *swrCtx_;

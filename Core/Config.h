@@ -149,7 +149,7 @@ public:
 
 	// GFX
 	int iGPUBackend;
-	std::string customDriver;
+	std::string sCustomDriver;
 	std::string sFailedGPUBackends;
 	std::string sDisabledGPUBackends;
 	// We have separate device parameters for each backend so it doesn't get erased if you switch backends.
@@ -172,6 +172,7 @@ public:
 	bool bDisableRangeCulling;
 
 	int iTexFiltering; // 1 = auto , 2 = nearest , 3 = linear , 4 = auto max quality
+	bool bSmart2DTexFiltering;
 
 	bool bDisplayStretch;  // Automatically matches the aspect ratio of the window.
 	int iDisplayFilter;    // 1 = linear, 2 = nearest
@@ -179,6 +180,7 @@ public:
 	float fDisplayOffsetY;
 	float fDisplayScale;   // Relative to the most constraining axis (x or y).
 	bool bDisplayIntegerScale;  // Snaps scaling to integer scale factors in raw pixels.
+	bool bDisplayCropTo16x9;  // Crops to 16:9 if the resolution is very close.
 	float fDisplayAspectRatio;  // Stored relative to the PSP's native ratio, so 1.0 is the normal pixel aspect ratio.
 
 	bool bImmersiveMode;  // Mode on Android Kitkat 4.4 and later that hides the back button etc.
@@ -235,7 +237,7 @@ public:
 	int iAutoLoadSaveState; // 0 = off, 1 = oldest, 2 = newest, >2 = slot number + 3
 	bool bEnableCheats;
 	bool bReloadCheats;
-	int iCwCheatRefreshRate;
+	int iCwCheatRefreshIntervalMs;
 	float fCwCheatScrollPosition;
 	float fGameListScrollPosition;
 	int iBloomHack; //0 = off, 1 = safe, 2 = balanced, 3 = aggressive
@@ -267,6 +269,7 @@ public:
 	int iGlobalVolume;
 	int iReverbVolume;
 	int iAltSpeedVolume;
+	int iAchievementSoundVolume;
 	bool bExtraAudioBuffering;  // For bluetooth
 	std::string sAudioDevice;
 	bool bAutoAudioDevice;
@@ -404,6 +407,7 @@ public:
 
 	// Sets whether combo mapping is enabled.
 	bool bAllowMappingCombos;
+	bool bStrictComboOrder;
 
 	bool bMouseControl;
 	bool bMapMouse; // Workaround for mapping screen:|
@@ -602,7 +606,7 @@ public:
 	bool HasRecentIsos() const;
 	void ClearRecentIsos();
 
-	const std::map<std::string, std::pair<std::string, int>> &GetLangValuesMapping();
+	const std::map<std::string, std::pair<std::string, int>, std::less<>> &GetLangValuesMapping();
 	bool LoadAppendedConfig();
 	void SetAppendedConfigIni(const Path &path);
 	void UpdateAfterSettingAutoFrameSkip();
@@ -626,7 +630,7 @@ private:
 	std::string gameId_;
 	std::string gameIdTitle_;
 	std::vector<std::string> recentIsos;
-	std::map<std::string, std::pair<std::string, int>> langValuesMapping_;
+	std::map<std::string, std::pair<std::string, int>, std::less<>> langValuesMapping_;
 	PlayTimeTracker playTimeTracker_;
 	Path iniFilename_;
 	Path controllerIniFilename_;

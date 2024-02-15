@@ -589,6 +589,9 @@ struct GPUStateCache {
 			Dirty(DIRTY_FRAGMENTSHADER_STATE);
 		}
 	}
+	void SetTextureIsVideo(bool isVideo) {
+		textureIsVideo = isVideo;
+	}
 	void SetTextureIsBGRA(bool isBGRA) {
 		if (bgraTexture != isBGRA) {
 			bgraTexture = isBGRA;
@@ -657,6 +660,7 @@ public:
 	bool needShaderTexClamp;
 	bool textureIsArray;
 	bool textureIsFramebuffer;
+	bool textureIsVideo;
 	bool useFlagsChanged;
 
 	float morphWeights[8];
@@ -688,6 +692,9 @@ public:
 	// Examples of games that do this: Outrun, Split/Second.
 	// We detect this case and go into a special drawing mode.
 	bool blueToAlpha;
+
+	// U/V is 1:1 to pixels. Can influence texture sampling.
+	bool pixelMapped;
 
 	// TODO: These should be accessed from the current VFB object directly.
 	u32 curRTWidth;

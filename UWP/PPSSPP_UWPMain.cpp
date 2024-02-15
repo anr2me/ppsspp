@@ -402,7 +402,7 @@ float System_GetPropertyFloat(SystemProperty prop) {
 	}
 }
 
-void System_Toast(const char *str) {}
+void System_Toast(std::string_view str) {}
 
 bool System_GetPropertyBool(SystemProperty prop) {
 	switch (prop) {
@@ -506,6 +506,9 @@ bool System_MakeRequest(SystemRequestType type, int requestId, const std::string
 			break;
 		case BrowseFileType::INI:
 			supportedExtensions = { ".ini" };
+			break;
+		case BrowseFileType::ZIP:
+			supportedExtensions = { ".zip" };
 			break;
 		case BrowseFileType::DB:
 			supportedExtensions = { ".db" };

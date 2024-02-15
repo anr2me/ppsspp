@@ -127,6 +127,14 @@ bool Connection::Connect(int maxTries, double timeout, bool *cancelConnect) {
 				ERROR_LOG(IO, "Bad socket");
 				continue;
 			}
+			// Windows sockets aren't limited by socket number, just by count, so checking FD_SETSIZE there is wrong.
+#if !PPSSPP_PLATFORM(WINDOWS)
+			if (sock >= FD_SETSIZE) {
+				ERROR_LOG(IO, "Socket doesn't fit in FD_SET: %d   We probably have a leak.", sock);
+				closesocket(sock);
+				continue;
+			}
+#endif
 			fd_util::SetNonBlocking(sock, true);
 
 			// Start trying to connect (async with timeout.)
@@ -194,6 +202,11 @@ bool Connection::Connect(int maxTries, double timeout, bool *cancelConnect) {
 
 			// Great, now we're good to go.
 			return true;
+		} else {
+			// Fail. Close all the sockets.
+			for (int sock : sockets) {
+				closesocket(sock);
+			}
 		}
 
 		if (cancelConnect && *cancelConnect) {
@@ -485,7 +498,7 @@ int Client::ReadResponseEntity(net::Buffer *readbuf, const std::vector<std::stri
 	return 0;
 }
 
-HTTPRequest::HTTPRequest(RequestMethod method, const std::string &url, const std::string &postData, const std::string &postMime, const Path &outfile, ProgressBarMode progressBarMode, const std::string &name)
+HTTPRequest::HTTPRequest(RequestMethod method, const std::string &url, const std::string &postData, const std::string &postMime, const Path &outfile, ProgressBarMode progressBarMode, std::string_view name)
 	: Request(method, url, name, &cancelled_, progressBarMode), postData_(postData), postMime_(postMime), outfile_(outfile) {
 }
 

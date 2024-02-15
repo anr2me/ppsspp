@@ -194,6 +194,7 @@ protected:
 		gpuStats.numDrawCalls += numDrawInds_;
 		gpuStats.numVertexDecodes += numDrawVerts_;
 		gpuStats.numVertsSubmitted += vertexCountInDrawCalls_;
+		gpuStats.numVertsDecoded += numDecodedVerts_;
 
 		indexGen.Reset();
 		numDecodedVerts_ = 0;
@@ -241,7 +242,9 @@ protected:
 		}
 	}
 
-	uint32_t ComputeDrawcallsHash() const;
+	inline int RemainingIndices(const uint16_t *inds) const {
+		return DECODED_INDEX_BUFFER_SIZE / sizeof(uint16_t) - (inds - decIndex_);
+	}
 
 	bool useHWTransform_ = false;
 	bool useHWTessellation_ = false;

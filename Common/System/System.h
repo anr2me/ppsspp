@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 #include <functional>
 #include <cstdint>
@@ -28,7 +29,7 @@ enum PermissionStatus {
 
 // These APIs must be implemented by every port (for example app-android.cpp, SDLMain.cpp).
 // Ideally these should be safe to call from any thread.
-void System_Toast(const char *text);
+void System_Toast(std::string_view text);
 void System_ShowKeyboard();
 
 // Vibrate either takes a number of milliseconds to vibrate unconditionally,
@@ -83,6 +84,7 @@ enum class SystemRequestType {
 	// High-level hardware control
 	CAMERA_COMMAND,
 	GPS_COMMAND,
+	INFRARED_COMMAND,
 	MICROPHONE_COMMAND,
 };
 
@@ -245,6 +247,7 @@ enum class UIMessage {
 	SAVESTATE_DISPLAY_SLOT,
 	GAMESETTINGS_SEARCH,
 	SAVEDATA_SEARCH,
+	RESTART_GRAPHICS,
 };
 
 std::string System_GetProperty(SystemProperty prop);

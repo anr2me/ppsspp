@@ -425,7 +425,8 @@ VirtualFramebuffer *FramebufferManagerCommon::DoSetRenderFrameBuffer(Framebuffer
 				vfb->height = drawing_height;
 			}
 			break;
-		} else if (!PSP_CoreParameter().compat.flags().DisallowFramebufferAtOffset && v->fb_stride == params.fb_stride && v->fb_format == params.fb_format && !PSP_CoreParameter().compat.flags().SplitFramebufferMargin) {
+		} else if (!PSP_CoreParameter().compat.flags().DisallowFramebufferAtOffset && !PSP_CoreParameter().compat.flags().SplitFramebufferMargin &&
+			v->fb_stride == params.fb_stride && v->fb_format == params.fb_format) {
 			u32 v_fb_first_line_end_ptr = v->fb_address + v->fb_stride * bpp;
 			u32 v_fb_end_ptr = v->fb_address + v->fb_stride * v->height * bpp;
 
@@ -441,7 +442,9 @@ VirtualFramebuffer *FramebufferManagerCommon::DoSetRenderFrameBuffer(Framebuffer
 					drawing_width += x_offset;
 					break;
 				}
-			} else if (PSP_CoreParameter().compat.flags().FramebufferAllowLargeVerticalOffset && params.fb_address > v->fb_address && v->fb_stride > 0 && (params.fb_address - v->fb_address) % v->FbStrideInBytes() == 0) {
+			} else if (PSP_CoreParameter().compat.flags().FramebufferAllowLargeVerticalOffset &&
+				params.fb_address > v->fb_address && v->fb_stride > 0 && (params.fb_address - v->fb_address) % v->FbStrideInBytes() == 0 &&
+				params.fb_address != 0x04088000 && v->fb_address != 0x04000000) {  // Heuristic to avoid merging the main framebuffers.
 				int y_offset = (params.fb_address - v->fb_address) / v->FbStrideInBytes();
 				if (y_offset <= v->bufferHeight) {  // note: v->height is misdetected as 256 instead of 272 here in tokimeki. Note that 272 is just the height of the upper part, it's supersampling vertically.
 					vfb = v;
@@ -1547,6 +1550,7 @@ void FramebufferManagerCommon::CopyDisplayToOutput(bool reallyDirty) {
 		// No framebuffer to display! Clear to black.
 		if (useBufferedRendering_) {
 			draw_->BindFramebufferAsRenderTarget(nullptr, { Draw::RPAction::CLEAR, Draw::RPAction::CLEAR, Draw::RPAction::CLEAR }, "CopyDisplayToOutput");
+			presentation_->NotifyPresent();
 		}
 		gstate_c.Dirty(DIRTY_VIEWPORTSCISSOR_STATE);
 		return;
@@ -2810,7 +2814,9 @@ void FramebufferManagerCommon::NotifyRenderResized(int msaaLevel) {
 	PSP_CoreParameter().renderScaleFactor = scaleFactor;
 
 	if (UpdateRenderSize(msaaLevel)) {
+		draw_->StopThreads();
 		DestroyAllFBOs();
+		draw_->StartThreads();
 	}
 
 	// No drawing is allowed here. This includes anything that might potentially touch a command buffer, like creating images!

@@ -318,6 +318,9 @@ bool MainUI::HandleCustomEvent(QEvent *e) {
 		case BrowseFileType::SOUND_EFFECT:
 			filter = "WAVE files (*.wav)";
 			break;
+		case BrowseFileType::ZIP:
+			filter = "ZIP files (*.zip)";
+			break;
 		case BrowseFileType::ANY:
 			break;
 		}
@@ -416,7 +419,7 @@ bool System_MakeRequest(SystemRequestType type, int requestId, const std::string
 	}
 }
 
-void System_Toast(const char *text) {}
+void System_Toast(std::string_view text) {}
 
 void System_AskForPermission(SystemPermission permission) {}
 PermissionStatus System_GetPermissionStatus(SystemPermission permission) { return PERMISSION_STATUS_GRANTED; }
@@ -658,7 +661,7 @@ bool MainUI::event(QEvent *e) {
 			default:
 				if (str.size()) {
 					int pos = 0;
-					int unicode = u8_nextchar(str.c_str(), &pos);
+					int unicode = u8_nextchar(str.c_str(), &pos, str.size());
 					NativeKey(KeyInput(DEVICE_ID_KEYBOARD, unicode));
 				}
 				break;
