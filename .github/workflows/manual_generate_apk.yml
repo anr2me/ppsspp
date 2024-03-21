@@ -11,6 +11,8 @@ on:
         options: 
         - NormalOptimized
         - NormalDebug
+        - VrDebug
+        - VrOptimized
 
 jobs:
 
@@ -39,7 +41,7 @@ jobs:
       #    ndk-version: r21e
       
       - name: Assemble APK
-        run: bash ./gradlew assemble${{ github.event.inputs.buildVariant }} --stacktrace
+        run: bash ./gradlew assemble${{ github.event.inputs.buildVariant }} --stacktrace --debug --scan
       
       #- name: Gradle Test
       #  run: bash ./gradlew test${{ github.event.inputs.buildVariant }}UnitTest --stacktrace
@@ -48,10 +50,8 @@ jobs:
         run: |
           find . -name "*.apk"
           mkdir ppsspp
-          if [ -e android/build/*/apk/*/*/android-normal-optimized.apk ]; then
-            cp android/build/*/apk/*/*/android-normal-optimized.apk ppsspp/
-          elif [ -e android/build/*/apk/*/*/android-normal-debug.apk ]; then
-            cp android/build/*/apk/*/*/android-normal-debug.apk ppsspp/
+          if [ -e android/build/*/apk/*/*/*.apk ]; then
+            cp android/build/*/apk/*/*/*.apk ppsspp/
           fi
 
       - name: Upload artifact
