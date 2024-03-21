@@ -830,7 +830,7 @@ std::vector<PSPFileInfo> DirectoryFileSystem::GetDirListing(const std::string &p
 			entry.name = file.name;
 		}
 		if (hideISOFiles) {
-			if (endsWithNoCase(entry.name, ".cso") || endsWithNoCase(entry.name, ".iso")) {
+			if (endsWithNoCase(entry.name, ".cso") || endsWithNoCase(entry.name, ".iso") || endsWithNoCase(entry.name, ".chd")) {  // chd not really necessary, but let's hide them too.
 				// Workaround for DJ Max Portable, see compat.ini.
 				continue;
 			} else if (file.isDirectory) {
@@ -1067,6 +1067,9 @@ size_t VFSFileSystem::ReadFile(u32 handle, u8 *pointer, s64 size, int &usec) {
 	EntryMap::iterator iter = entries.find(handle);
 	if (iter != entries.end())
 	{
+		if(iter->second.seekPos + size > iter->second.size)
+			size = iter->second.size - iter->second.seekPos;
+		if(size < 0) size = 0;
 		size_t bytesRead = size;
 		memcpy(pointer, iter->second.fileData + iter->second.seekPos, size);
 		iter->second.seekPos += size;
