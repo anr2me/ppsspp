@@ -41,7 +41,7 @@ jobs:
       #    ndk-version: r21e
       
       - name: Assemble APK
-        run: bash ./gradlew assemble${{ github.event.inputs.buildVariant }} --stacktrace --info --scan
+        run: bash ./gradlew assemble${{ github.event.inputs.buildVariant }} --stacktrace --info
       
       #- name: Gradle Test
       #  run: bash ./gradlew test${{ github.event.inputs.buildVariant }}UnitTest --stacktrace
