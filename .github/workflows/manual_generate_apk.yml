@@ -25,6 +25,11 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+
+      - name: Create a dummy tag (androidGitVersion need at least one tag to exist)
+        run: |
+             git tag dummy
+             ./gradle --quiet androidGitVersion
         
       - name: Setup JDK
         uses: actions/setup-java@v2
