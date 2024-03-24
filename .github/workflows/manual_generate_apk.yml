@@ -27,9 +27,7 @@ jobs:
           submodules: recursive
 
       - name: Create a dummy tag (androidGitVersion need at least one tag to exist)
-        run: |
-             git tag dummy
-             ./gradle --quiet androidGitVersion
+        run: git tag dummy
         
       - name: Setup JDK
         uses: actions/setup-java@v2
@@ -45,6 +43,9 @@ jobs:
       #  uses: nttld/setup-ndk@v1
       #  with:
       #    ndk-version: r21e
+
+      - name: Test androidGitVersion
+        run: gradle --quiet androidGitVersion
       
       - name: Assemble APK
         run: bash ./gradlew assemble${{ github.event.inputs.buildVariant }} --stacktrace --info
